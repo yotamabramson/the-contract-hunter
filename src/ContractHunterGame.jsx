@@ -26,10 +26,10 @@ const CULTURE_ICONS = {
 };
 
 const COMPANIES = [
-  // --- THE OVERBEARING FINTECH (Azrieli Sarona Tower) ---
-  { id: 'fin1', culture: 'fintech', name: 'טוראס פייננס — מגדל עזריאל שרונה, קומה 54', roleTitle: 'Senior Quant Engineer', salaryMin: 42000, salaryMax: 68000, techInterest: 5, prestige: 5, wfhDays: 1, optionGrants: 1, flexHours: 1, stressPerStage: 16, desc: 'ענקית פינטק עם תרבות "זאבי וול-סטריט", בונוסים אגדיים ולוחות זמנים בלתי אפשריים.' },
-  { id: 'fin2', culture: 'fintech', name: 'קרדיטקס גלובל — מגדל עזריאל שרונה, קומה 61', roleTitle: 'Head of Risk Algorithms', salaryMin: 45000, salaryMax: 72000, techInterest: 4, prestige: 5, wfhDays: 0, optionGrants: 2, flexHours: 0, stressPerStage: 18, desc: 'מודלים פיננסיים עתירי סיכון, שעות עבודה שלא נגמרות, ותביעה למחויבות מוחלטת.' },
-  { id: 'fin3', culture: 'fintech', name: 'וולטבנק דיגיטל — מגדל עזריאל שרונה, קומה 48', roleTitle: 'Principal Trading Systems Architect', salaryMin: 40000, salaryMax: 65000, techInterest: 6, prestige: 4, wfhDays: 1, optionGrants: 1, flexHours: 1, stressPerStage: 15, desc: 'מערכות מסחר בזמן אמת, לחץ יומיומי אמיתי, אך שם מוכר ומכובד בשוק.' },
+  // --- THE OVERBEARING FINTECH (Shealtieli Tower) ---
+  { id: 'fin1', culture: 'fintech', name: 'טוראס פייננס — מגדל שאלתיאלי, קומה 54', roleTitle: 'Senior Quant Engineer', salaryMin: 42000, salaryMax: 68000, techInterest: 5, prestige: 5, wfhDays: 1, optionGrants: 1, flexHours: 1, stressPerStage: 16, desc: 'ענקית פינטק עם תרבות "זאבי וול-סטריט", בונוסים אגדיים ולוחות זמנים בלתי אפשריים.' },
+  { id: 'fin2', culture: 'fintech', name: 'קרדיטקס גלובל — מגדל שאלתיאלי, קומה 61', roleTitle: 'Head of Risk Algorithms', salaryMin: 45000, salaryMax: 72000, techInterest: 4, prestige: 5, wfhDays: 0, optionGrants: 2, flexHours: 0, stressPerStage: 18, desc: 'מודלים פיננסיים עתירי סיכון, שעות עבודה שלא נגמרות, ותביעה למחויבות מוחלטת.' },
+  { id: 'fin3', culture: 'fintech', name: 'וולטבנק דיגיטל — מגדל שאלתיאלי, קומה 48', roleTitle: 'Principal Trading Systems Architect', salaryMin: 40000, salaryMax: 65000, techInterest: 6, prestige: 4, wfhDays: 1, optionGrants: 1, flexHours: 1, stressPerStage: 15, desc: 'מערכות מסחר בזמן אמת, לחץ יומיומי אמיתי, אך שם מוכר ומכובד בשוק.' },
 
   // --- THE GLOBAL CORPORATE TECH GIANT ---
   { id: 'corp1', culture: 'corporate', name: 'מגה-סופט ישראל (מטה עולמי)', roleTitle: 'Principal Software Engineer', salaryMin: 35000, salaryMax: 55000, techInterest: 7, prestige: 5, wfhDays: 2, optionGrants: 2, flexHours: 1, stressPerStage: 12, desc: 'חמישה שלבי ראיונות, שאלות אלגוריתמים קשות, ותהליכים ביורוקרטיים ארוכים - אך יציבות ונוצצת בקורות החיים.' },
@@ -646,7 +646,7 @@ function EndScreen({ result, onRestart }) {
         <div className="max-w-lg w-full bg-gray-900 border border-gray-700 rounded-2xl p-8 text-center">
           <Hourglass size={48} className="mx-auto text-orange-400 mb-4" />
           <h2 className="text-2xl font-bold text-orange-300 mb-2">פג תוקף הציד</h2>
-          <p className="text-gray-400 mb-6">יום 30 הגיע ואף חוזה לא נחתם. השוק לא עוצר לאף אחד.</p>
+          <p className="text-gray-400 mb-6">יום 180 הגיע ואף חוזה לא נחתם. השוק לא עוצר לאף אחד.</p>
           <button onClick={onRestart} className="bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg px-6 py-3 flex items-center gap-2 mx-auto">
             <RefreshCw size={16} /> נסה שוב
           </button>
@@ -656,11 +656,16 @@ function EndScreen({ result, onRestart }) {
   }
 
   // accepted
-  const { company, offer, finalStress } = result;
+  const { company, offer, finalStress, finalDay } = result;
   const jobSatisfaction = clamp(Math.round(company.techInterest * 10), 0, 100);
   const walletPrestige = clamp(Math.round((offer.salary / 72000) * 70 + company.prestige * 6), 0, 100);
   const sanityQoL = clamp(Math.round((100 - finalStress) * 0.5 + company.wfhDays * 8 + company.flexHours * 6), 0, 100);
-  const overall = Math.round((jobSatisfaction + walletPrestige + sanityQoL) / 3);
+  const rawOverall = Math.round((jobSatisfaction + walletPrestige + sanityQoL) / 3);
+  // Linear time-hunting penalty: a bad job after ~30 days, a good job after ~90 days,
+  // and a dream job after the full 180 days all net out to roughly the same weighted score.
+  const TIME_PENALTY_PER_DAY = 0.4;
+  const timePenalty = Math.round(finalDay * TIME_PENALTY_PER_DAY);
+  const overall = clamp(rawOverall - timePenalty, 0, 100);
   const grade = gradeFor(overall);
 
   return (
@@ -677,7 +682,11 @@ function EndScreen({ result, onRestart }) {
           <ScoreBar label="מדד עניין וסיפוק מקצועי" value={jobSatisfaction} icon={Sparkles} />
           <ScoreBar label="מדד שכר ויוקרה" value={walletPrestige} icon={DollarSign} />
           <ScoreBar label="מדד שפיות ואיכות חיים" value={sanityQoL} icon={HeartPulse} />
-          <div className="flex items-center justify-between mt-5 pt-4 border-t border-gray-800">
+          <div className="flex items-center justify-between text-xs text-gray-500 mt-3">
+            <span>קנס על משך החיפוש (<span dir="ltr">{finalDay}</span> ימים)</span>
+            <span className="text-red-400 font-semibold">−{timePenalty}</span>
+          </div>
+          <div className="flex items-center justify-between mt-3 pt-4 border-t border-gray-800">
             <span className="text-gray-300 font-semibold">ציון כולל</span>
             <span className={`text-3xl font-extrabold ${grade.color}`}>{grade.letter} · {overall}</span>
           </div>
@@ -727,7 +736,7 @@ export default function ContractHunterGame() {
   useEffect(() => {
     if (!started || gameOver) return;
     const iv = setInterval(() => {
-      setDay((d) => Math.min(d + 1, 30));
+      setDay((d) => Math.min(d + 1, 180));
     }, 4000);
     return () => clearInterval(iv);
   }, [started, gameOver]);
@@ -743,7 +752,8 @@ export default function ContractHunterGame() {
   useEffect(() => {
     if (!started || gameOver || day === 1) return;
     const available = COMPANIES.filter((c) => !contactedRef.current.has(c.id));
-    if (available.length > 0 && Math.random() < 0.55) {
+    // Tuned so the 12 invites spread across most of the 180-day hunt instead of arriving in the first few weeks.
+    if (available.length > 0 && Math.random() < 0.09) {
       const company = available[Math.floor(Math.random() * available.length)];
       contactedRef.current.add(company.id);
       setPipeline((prev) => ({ ...prev, [company.id]: { status: 'invited', stage: 0 } }));
@@ -766,7 +776,7 @@ export default function ContractHunterGame() {
 
   // Timeout game over
   useEffect(() => {
-    if (started && !gameOver && day >= 30) {
+    if (started && !gameOver && day >= 180) {
       setGameOver({ type: 'timeout', finalDay: day });
     }
   }, [day, started, gameOver]);
@@ -842,7 +852,7 @@ export default function ContractHunterGame() {
           <h1 className="text-4xl font-extrabold mb-2">צייד החוזים</h1>
           <p className="text-gray-400 mb-1">The Contract Hunter</p>
           <p className="text-gray-500 text-sm mb-8 leading-relaxed">
-            30 יום. 12 חברות. תיבת דואר עמוסה בגייסים. ראיונות טכניים, פאזלים ארכיטקטוניים ומלכודות התנהגותיות.
+            180 יום. 12 חברות. תיבת דואר עמוסה בגייסים. ראיונות טכניים, פאזלים ארכיטקטוניים ומלכודות התנהגותיות.
             נהל/י את הלחץ, בנה/י אגו, וחתמ/י על ההצעה הטובה ביותר — לפני שהזמן, או העצבים, ייגמרו.
           </p>
           <button
@@ -880,7 +890,7 @@ export default function ContractHunterGame() {
             </div>
           </div>
           <div className="flex flex-wrap gap-3">
-            <StatPill icon={Calendar} label="יום" value={<span dir="ltr">{day} / 30</span>} barColor="bg-blue-500" barPct={(day / 30) * 100} />
+            <StatPill icon={Calendar} label="יום" value={<span dir="ltr">{day} / 180</span>} barColor="bg-blue-500" barPct={(day / 180) * 100} />
             <StatPill icon={Flame} label="לחץ" value={`${stress}%`} barColor={stress > 70 ? 'bg-red-500' : stress > 40 ? 'bg-orange-400' : 'bg-green-500'} barPct={stress} />
             <StatPill icon={Award} label="אגו / מוניטין" value={ego} barColor="bg-purple-500" barPct={ego} />
             <StatPill icon={Gift} label="הצעות בתיבה" value={offersCount} />
