@@ -539,11 +539,14 @@ function InterviewModal({ company, stage, onComplete }) {
 // INBOX MESSAGE CARD
 // ============================================================================
 
-function MessageCard({ message, company, onStartInterview, onAccept, now, interviewLocked }) {
+function MessageCard({ message, company, onStartInterview, onAccept, now, interviewLocked, highlighted }) {
+  const domId = `msg-${message.id}`;
+  const highlightCls = highlighted ? ' ring-2 ring-yellow-400 ring-offset-2 ring-offset-gray-950' : '';
+
   if (message.type === 'invite') {
     const Icon = CULTURE_ICONS[company.culture];
     return (
-      <div className="border border-blue-900 bg-blue-950/20 rounded-xl p-4 shrink-0">
+      <div id={domId} className={`border border-blue-900 bg-blue-950/20 rounded-xl p-4 shrink-0${highlightCls}`}>
         <div className="flex items-center gap-2 mb-1">
           <Icon size={16} className="text-blue-400" />
           <span className="font-bold text-gray-100 text-sm">{message.title}</span>
@@ -563,7 +566,7 @@ function MessageCard({ message, company, onStartInterview, onAccept, now, interv
   if (message.type === 'stage_invite') {
     const Icon = CULTURE_ICONS[company.culture];
     return (
-      <div className="border border-blue-900 bg-blue-950/20 rounded-xl p-4 shrink-0">
+      <div id={domId} className={`border border-blue-900 bg-blue-950/20 rounded-xl p-4 shrink-0${highlightCls}`}>
         <div className="flex items-center gap-2 mb-1">
           <Icon size={16} className="text-blue-400" />
           <span className="font-bold text-gray-100 text-sm">{message.title}</span>
@@ -582,7 +585,7 @@ function MessageCard({ message, company, onStartInterview, onAccept, now, interv
 
   if (message.type === 'rejection') {
     return (
-      <div className="border border-gray-800 bg-gray-900/40 rounded-xl p-4 opacity-80 shrink-0">
+      <div id={domId} className={`border border-gray-800 bg-gray-900/40 rounded-xl p-4 opacity-80 shrink-0${highlightCls}`}>
         <div className="flex items-center gap-2 mb-1">
           <XCircle size={16} className="text-red-500" />
           <span className="font-bold text-gray-300 text-sm">{message.title}</span>
@@ -594,7 +597,7 @@ function MessageCard({ message, company, onStartInterview, onAccept, now, interv
 
   if (message.type === 'system') {
     return (
-      <div className="border border-gray-800 bg-gray-900/30 rounded-xl p-4 shrink-0">
+      <div id={domId} className={`border border-gray-800 bg-gray-900/30 rounded-xl p-4 shrink-0${highlightCls}`}>
         <div className="flex items-center gap-2 mb-1">
           <Coffee size={16} className="text-gray-500" />
           <span className="font-bold text-gray-400 text-sm">{message.title}</span>
@@ -609,7 +612,7 @@ function MessageCard({ message, company, onStartInterview, onAccept, now, interv
     const withdrawn = message.status === 'withdrawn';
     const pct = clamp(((offer.expiresAt - now) / offer.duration) * 100, 0, 100);
     return (
-      <div className={`border-2 rounded-xl p-4 shrink-0 ${withdrawn ? 'border-gray-800 bg-gray-900/40 opacity-60' : 'border-red-700 bg-red-950/20 shadow-lg shadow-red-950/30'}`}>
+      <div id={domId} className={`border-2 rounded-xl p-4 shrink-0${highlightCls} ${withdrawn ? 'border-gray-800 bg-gray-900/40 opacity-60' : 'border-red-700 bg-red-950/20 shadow-lg shadow-red-950/30'}`}>
         {offer.isUltimatum && !withdrawn && (
           <div className="flex items-center gap-1 text-[10px] font-bold text-red-400 mb-2 animate-pulse">
             <Zap size={12} /> אולטימטום 48 שעות!
@@ -708,7 +711,7 @@ function EndScreen({ result, onRestart }) {
           <ScoreBar label="מדד עניין וסיפוק מקצועי" value={jobSatisfaction} icon={Sparkles} />
           <ScoreBar label="מדד שכר ויוקרה" value={walletPrestige} icon={DollarSign} />
           <ScoreBar label="מדד שפיות ואיכות חיים" value={sanityQoL} icon={HeartPulse} />
-          <div className="flex items-center justify-between text-xs text-gray-500 mt-3">
+          <div className="flex items-center justify-between text-sm text-gray-500 mt-3">
             <span>קנס על משך החיפוש (<span dir="ltr">{finalDay}</span> ימים)</span>
             <span className="text-red-400 font-semibold">−{timePenalty}</span>
           </div>
@@ -740,6 +743,7 @@ export default function ContractHunterGame() {
   const [activeInterview, setActiveInterview] = useState(null);
   const [gameOver, setGameOver] = useState(null);
   const [now, setNow] = useState(Date.now());
+  const [highlightId, setHighlightId] = useState(null);
 
   const contactedRef = useRef(new Set());
   // Queue of delayed inbox arrivals: { id, dueDay, companyId, kind: 'stage_invite' | 'offer', stage, egoAtPass }
@@ -794,7 +798,7 @@ export default function ContractHunterGame() {
       const company = available[Math.floor(Math.random() * available.length)];
       contactedRef.current.add(company.id);
       lastArrivalDayRef.current = day;
-      setPipeline((prev) => ({ ...prev, [company.id]: { status: 'invited', stage: 0 } }));
+      setPipeline((prev) => ({ ...prev, [company.id]: { status: 'invited', stage: 0, arrivedDay: day, updatedAt: Date.now() } }));
       setInbox((prev) => [
         {
           id: uid('msg'), day, type: 'invite', companyId: company.id,
@@ -820,7 +824,7 @@ export default function ContractHunterGame() {
         lastArrivalDayRef.current = day;
         if (item.kind === 'stage_invite') {
           const stageNames = ['סינון טכני', 'ארכיטקטורת מערכת', 'ראיון בכיר / התנהגותי'];
-          setPipeline((prev) => ({ ...prev, [company.id]: { status: 'stage_ready', stage: item.stage } }));
+          setPipeline((prev) => ({ ...prev, [company.id]: { status: 'stage_ready', stage: item.stage, arrivedDay: day, updatedAt: Date.now() } }));
           setInbox((prev) => [
             {
               id: uid('msg'), day, type: 'stage_invite', companyId: company.id, stage: item.stage,
@@ -830,7 +834,7 @@ export default function ContractHunterGame() {
             ...prev,
           ]);
         } else if (item.kind === 'offer') {
-          setPipeline((prev) => ({ ...prev, [company.id]: { status: 'passed', stage: 3 } }));
+          setPipeline((prev) => ({ ...prev, [company.id]: { status: 'passed', stage: 3, updatedAt: Date.now() } }));
           const offer = generateOffer(company, item.egoAtPass);
           setInbox((prev) => [
             { id: uid('msg'), day, type: 'offer', companyId: company.id, title: `הצעת עבודה רשמית מ-${company.name}!`, offer, status: 'active' },
@@ -848,6 +852,28 @@ export default function ContractHunterGame() {
       setStress((s) => clamp(s + msg.stressDelta, 0, 100));
       setInbox((prev) => [{ id: uid('msg'), day, type: 'system', title: msg.title, body: msg.body }, ...prev]);
     }
+
+    // Auto-reject: ghosting a company's invite/next-stage mail for 14+ days (during the
+    // first 3 interview stages only — the final offer has its own ultimatum timer instead).
+    const AUTO_REJECT_DAYS = 14;
+    Object.entries(pipeline).forEach(([companyId, entry]) => {
+      const waitingOnPlayer = entry.status === 'invited' || entry.status === 'stage_ready';
+      if (!waitingOnPlayer || entry.arrivedDay === undefined) return;
+      if (day - entry.arrivedDay < AUTO_REJECT_DAYS) return;
+      const company = COMPANIES.find((c) => c.id === companyId);
+      if (!company) return;
+      lastArrivalDayRef.current = day;
+      setPipeline((prev) => ({ ...prev, [companyId]: { status: 'rejected', stage: entry.stage, updatedAt: Date.now() } }));
+      setInbox((prev) => [
+        {
+          id: uid('msg'), day, type: 'rejection', companyId,
+          title: `תשובה מ-${company.name}`,
+          body: 'לא הגבת לפנייה בזמן, והחברה החליטה להמשיך הלאה עם מועמדים אחרים.',
+        },
+        ...prev.filter((m) => !((m.type === 'invite' || m.type === 'stage_invite') && m.companyId === companyId)),
+      ]);
+      setStress((s) => clamp(s + 4, 0, 100));
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [day]);
 
@@ -883,7 +909,7 @@ export default function ContractHunterGame() {
 
   function startInterview(company, stage = 0) {
     if (activeInterview || gameOver) return;
-    setPipeline((prev) => ({ ...prev, [company.id]: { status: 'in_progress', stage } }));
+    setPipeline((prev) => ({ ...prev, [company.id]: { status: 'in_progress', stage, updatedAt: Date.now() } }));
     setInbox((prev) => prev.filter((m) => !((m.type === 'invite' || m.type === 'stage_invite') && m.companyId === company.id)));
     setActiveInterview({ company, stage });
   }
@@ -897,7 +923,7 @@ export default function ContractHunterGame() {
 
     if (!result.passed) {
       lastArrivalDayRef.current = day;
-      setPipeline((prev) => ({ ...prev, [company.id]: { status: 'rejected', stage } }));
+      setPipeline((prev) => ({ ...prev, [company.id]: { status: 'rejected', stage, updatedAt: Date.now() } }));
       setInbox((prev) => [
         { id: uid('msg'), day, type: 'rejection', companyId: company.id, title: `תשובה מ-${company.name}`, body: result.rejectionNote || 'לצערנו החלטנו להמשיך עם מועמדים אחרים בשלב זה.' },
         ...prev,
@@ -909,10 +935,10 @@ export default function ContractHunterGame() {
     // as a separate mail after a short delay, instead of continuing in the same modal.
     const delay = 1 + Math.floor(Math.random() * 2); // 1-2 days
     if (stage < 2) {
-      setPipeline((prev) => ({ ...prev, [company.id]: { status: 'awaiting_stage', stage: stage + 1 } }));
+      setPipeline((prev) => ({ ...prev, [company.id]: { status: 'awaiting_stage', stage: stage + 1, updatedAt: Date.now() } }));
       pendingArrivalsRef.current.push({ id: uid('pend'), dueDay: day + delay, companyId: company.id, kind: 'stage_invite', stage: stage + 1 });
     } else {
-      setPipeline((prev) => ({ ...prev, [company.id]: { status: 'awaiting_offer', stage: 3 } }));
+      setPipeline((prev) => ({ ...prev, [company.id]: { status: 'awaiting_offer', stage: 3, updatedAt: Date.now() } }));
       pendingArrivalsRef.current.push({ id: uid('pend'), dueDay: day + delay, companyId: company.id, kind: 'offer', egoAtPass: newEgo });
     }
   }
@@ -920,6 +946,15 @@ export default function ContractHunterGame() {
   function acceptOffer(message) {
     const company = COMPANIES.find((c) => c.id === message.companyId);
     setGameOver({ type: 'accepted', company, offer: message.offer, finalStress: stress, finalDay: day });
+  }
+
+  function scrollToCompanyMail(companyId) {
+    const latest = inbox.find((m) => m.companyId === companyId);
+    if (!latest) return;
+    const el = document.getElementById(`msg-${latest.id}`);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setHighlightId(latest.id);
+    setTimeout(() => setHighlightId((h) => (h === latest.id ? null : h)), 1500);
   }
 
   if (!started) {
@@ -956,7 +991,23 @@ export default function ContractHunterGame() {
     );
   }
 
-  const pipelineEntries = Object.entries(pipeline).filter(([, v]) => v.status !== 'none');
+  // Relevancy sort: anything still alive (not rejected) before dead ends, and within each
+  // group the furthest-along companies (higher stage) first, since they're most urgent.
+  // A just-changed entry (e.g. a fresh rejection) gets a brief recency boost so it doesn't
+  // instantly vanish to the bottom — it lingers near the top for a few seconds first.
+  const RECENT_UPDATE_MS = 6000;
+  const pipelineEntries = Object.entries(pipeline)
+    .filter(([, v]) => v.status !== 'none')
+    .sort(([, a], [, b]) => {
+      const aRecent = now - (a.updatedAt || 0) < RECENT_UPDATE_MS;
+      const bRecent = now - (b.updatedAt || 0) < RECENT_UPDATE_MS;
+      if (aRecent !== bRecent) return aRecent ? -1 : 1;
+      if (aRecent && bRecent) return (b.updatedAt || 0) - (a.updatedAt || 0);
+      const aDead = a.status === 'rejected';
+      const bDead = b.status === 'rejected';
+      if (aDead !== bDead) return aDead ? 1 : -1;
+      return (b.stage || 0) - (a.stage || 0);
+    });
 
   return (
     <div dir="rtl" className="min-h-screen bg-gradient-to-b from-gray-950 to-gray-900 text-gray-100 font-sans p-4 md:p-8">
@@ -995,6 +1046,7 @@ export default function ContractHunterGame() {
                   onAccept={acceptOffer}
                   now={now}
                   interviewLocked={!!activeInterview}
+                  highlighted={m.id === highlightId}
                 />
               ))}
             </div>
@@ -1028,7 +1080,11 @@ export default function ContractHunterGame() {
                   rejected: 'text-red-500',
                 }[entry.status];
                 return (
-                  <div key={companyId} className="border border-gray-800 bg-gray-900/50 rounded-lg p-3 shrink-0">
+                  <div
+                    key={companyId}
+                    onClick={() => scrollToCompanyMail(companyId)}
+                    className="border border-gray-800 bg-gray-900/50 rounded-lg p-3 shrink-0 cursor-pointer hover:border-blue-600 hover:bg-gray-900/80 transition-colors"
+                  >
                     <div className="text-xs font-semibold text-gray-200 truncate mb-1">{company.name}</div>
                     <div className={`text-[11px] mb-2 ${statusColor}`}>{statusLabel}</div>
                     <StageDots stage={entry.status === 'passed' ? 3 : entry.stage || 0} failedAt={entry.status === 'rejected' ? entry.stage : null} />
