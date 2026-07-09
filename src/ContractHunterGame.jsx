@@ -163,6 +163,14 @@ const FLAVOR_EVENTS = [
   { title: 'תור ארוך בבנק', body: 'בזבזת שעה בתור לבנק במקום להתכונן לראיון הבא.', stressDelta: 2 },
 ];
 
+// Fires after a stretch of silence with no invites/progress/offers — a little wave of self-doubt.
+const SELF_DOUBT_MESSAGES = [
+  { title: 'מחשבה בשלוש לפנות בוקר', body: 'אף אחד לא עונה כבר כמה ימים. אולי אני פשוט לא מספיק טוב/ה בשביל השוק הזה?', stressDelta: 6 },
+  { title: 'עוד יום שקט', body: 'בדקתי את התיבה בפעם העשירית היום. שום דבר. אולי הבעיה אצלי?', stressDelta: 5 },
+  { title: 'עריכה מחדש של קורות החיים', body: 'שכתבתי את הפתיח בפעם השלישית השבוע. זה עוזר, או שאני רק מנסה להרגיש שליטה?', stressDelta: 4 },
+  { title: 'שתיקה מהעבר השני', body: 'לא קיבלת שום עדכון כבר תקופה. השוק קשה, או שזה משהו אצלי?', stressDelta: 6 },
+];
+
 // ============================================================================
 // HELPERS
 // ============================================================================
@@ -283,8 +291,7 @@ function ScoreBar({ label, value, icon: Icon }) {
 // INTERVIEW MODAL
 // ============================================================================
 
-function InterviewModal({ company, onComplete }) {
-  const [stage, setStage] = useState(0);
+function InterviewModal({ company, stage, onComplete }) {
   const [questions] = useState(() => pickTwoQuestions());
   const [qIdx, setQIdx] = useState(0);
   const [timeLeft, setTimeLeft] = useState(15);
@@ -305,12 +312,11 @@ function InterviewModal({ company, onComplete }) {
 
   const Icon = CULTURE_ICONS[company.culture];
 
-  function finish(passed, stageFailedAt, rejectionNote) {
+  function finish(passed, rejectionNote) {
     if (finished.current) return;
     finished.current = true;
-    onComplete(company, {
+    onComplete(company, stage, {
       passed,
-      stageFailedAt,
       egoDelta: accumEgo.current,
       stressDelta: accumStress.current,
       rejectionNote,
@@ -335,7 +341,7 @@ function InterviewModal({ company, onComplete }) {
     const isCorrect = option === questions[qIdx].correctAnswer;
     if (!isCorrect) {
       accumStress.current += stressForOutcome(company, false);
-      setTimeout(() => finish(false, 0, 'לא עברת את שלב הסינון הטכני — התשובות לא היו מדויקות מספיק.'), 500);
+      setTimeout(() => finish(false, 'לא עברת את שלב הסינון הטכני — התשובות לא היו מדויקות מספיק.'), 500);
       return;
     }
     accumEgo.current += 4;
@@ -345,7 +351,7 @@ function InterviewModal({ company, onComplete }) {
         setTimeLeft(15);
         setLockedAnswer(null);
       } else {
-        setStage(1);
+        finish(true, null);
       }
     }, 500);
   }
@@ -359,7 +365,7 @@ function InterviewModal({ company, onComplete }) {
       accumEgo.current += 3;
       setSelectedLeft(null);
       if (nextMatched.length === puzzlePairs.length) {
-        setTimeout(() => setStage(2), 400);
+        setTimeout(() => finish(true, null), 400);
       }
     } else {
       const nm = mistakes + 1;
@@ -369,7 +375,7 @@ function InterviewModal({ company, onComplete }) {
       setTimeout(() => setShake(null), 400);
       setSelectedLeft(null);
       if (nm >= 3) {
-        setTimeout(() => finish(false, 1, 'לא הצלחת למפות נכון את רכיבי הארכיטקטורה לצווארי הבקבוק.'), 400);
+        setTimeout(() => finish(false, 'לא הצלחת למפות נכון את רכיבי הארכיטקטורה לצווארי הבקבוק.'), 400);
       }
     }
   }
@@ -379,24 +385,24 @@ function InterviewModal({ company, onComplete }) {
     if (key === 'A') {
       accumStress.current += 8;
       accumEgo.current -= 5;
-      finish(false, 2, 'התשובה נשמעה כמו קלישאה מוכנה מראש — לא השארת רושם אותנטי.');
+      finish(false, 'התשובה נשמעה כמו קלישאה מוכנה מראש — לא השארת רושם אותנטי.');
       return;
     }
     if (key === 'C') {
       accumEgo.current += 5;
       accumStress.current += 2;
-      finish(true, null, null);
+      finish(true, null);
       return;
     }
     const cultureFriendly = company.culture === 'saas' || company.culture === 'startup';
     if (cultureFriendly) {
       accumEgo.current += 15;
       accumStress.current += 2;
-      finish(true, null, null);
+      finish(true, null);
     } else {
       accumEgo.current -= 8;
       accumStress.current += 10;
-      finish(false, 2, 'התשובה הכנה מדי לא התקבלה היטב בתרבות הארגונית הנוקשה של החברה.');
+      finish(false, 'התשובה הכנה מדי לא התקבלה היטב בתרבות הארגונית הנוקשה של החברה.');
     }
   }
 
@@ -549,6 +555,26 @@ function MessageCard({ message, company, onStartInterview, onAccept, now, interv
           className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg py-2 transition-colors"
         >
           התחל ראיון
+        </button>
+      </div>
+    );
+  }
+
+  if (message.type === 'stage_invite') {
+    const Icon = CULTURE_ICONS[company.culture];
+    return (
+      <div className="border border-blue-900 bg-blue-950/20 rounded-xl p-4 shrink-0">
+        <div className="flex items-center gap-2 mb-1">
+          <Icon size={16} className="text-blue-400" />
+          <span className="font-bold text-gray-100 text-sm">{message.title}</span>
+        </div>
+        <p className="text-gray-400 text-xs mb-3 leading-relaxed">{message.body}</p>
+        <button
+          disabled={interviewLocked}
+          onClick={() => onStartInterview(company, message.stage)}
+          className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg py-2 transition-colors"
+        >
+          המשך לשלב הבא
         </button>
       </div>
     );
@@ -716,11 +742,19 @@ export default function ContractHunterGame() {
   const [now, setNow] = useState(Date.now());
 
   const contactedRef = useRef(new Set());
+  // Queue of delayed inbox arrivals: { id, dueDay, companyId, kind: 'stage_invite' | 'offer', stage, egoAtPass }
+  const pendingArrivalsRef = useRef([]);
+  // Tracks job-search silence, to trigger the self-doubt flavor message during dry spells.
+  const lastArrivalDayRef = useRef(1);
+  const lastSelfDoubtDayRef = useRef(0);
 
   const offersCount = inbox.filter((m) => m.type === 'offer' && m.status === 'active').length;
 
   function resetGame() {
     contactedRef.current = new Set();
+    pendingArrivalsRef.current = [];
+    lastArrivalDayRef.current = 1;
+    lastSelfDoubtDayRef.current = 0;
     setDay(1);
     setStress(10);
     setEgo(0);
@@ -752,10 +786,14 @@ export default function ContractHunterGame() {
   useEffect(() => {
     if (!started || gameOver || day === 1) return;
     const available = COMPANIES.filter((c) => !contactedRef.current.has(c.id));
-    // Tuned so the 12 invites spread across most of the 180-day hunt instead of arriving in the first few weeks.
-    if (available.length > 0 && Math.random() < 0.09) {
+    // Dense enough that invites keep showing up throughout the 180-day hunt; if the RNG
+    // goes cold, the first contact is force-delivered so the player is never left waiting long.
+    const noContactYet = contactedRef.current.size === 0;
+    const forceFirstContact = noContactYet && day >= 4;
+    if (available.length > 0 && (forceFirstContact || Math.random() < 0.3)) {
       const company = available[Math.floor(Math.random() * available.length)];
       contactedRef.current.add(company.id);
+      lastArrivalDayRef.current = day;
       setPipeline((prev) => ({ ...prev, [company.id]: { status: 'invited', stage: 0 } }));
       setInbox((prev) => [
         {
@@ -770,6 +808,45 @@ export default function ContractHunterGame() {
       const ev = FLAVOR_EVENTS[Math.floor(Math.random() * FLAVOR_EVENTS.length)];
       setStress((s) => clamp(s + ev.stressDelta, 0, 100));
       setInbox((prev) => [{ id: uid('msg'), day, type: 'system', title: ev.title, body: ev.body }, ...prev]);
+    }
+
+    // Deliver any delayed stage-invites / offers whose arrival day has come.
+    const due = pendingArrivalsRef.current.filter((p) => p.dueDay <= day);
+    if (due.length > 0) {
+      pendingArrivalsRef.current = pendingArrivalsRef.current.filter((p) => p.dueDay > day);
+      due.forEach((item) => {
+        const company = COMPANIES.find((c) => c.id === item.companyId);
+        if (!company) return;
+        lastArrivalDayRef.current = day;
+        if (item.kind === 'stage_invite') {
+          const stageNames = ['סינון טכני', 'ארכיטקטורת מערכת', 'ראיון בכיר / התנהגותי'];
+          setPipeline((prev) => ({ ...prev, [company.id]: { status: 'stage_ready', stage: item.stage } }));
+          setInbox((prev) => [
+            {
+              id: uid('msg'), day, type: 'stage_invite', companyId: company.id, stage: item.stage,
+              title: `${company.name}: התקדמת לשלב הבא בתהליך!`,
+              body: `עברת בהצלחה את השלב הקודם. השלב הבא הוא: ${stageNames[item.stage]}.`,
+            },
+            ...prev,
+          ]);
+        } else if (item.kind === 'offer') {
+          setPipeline((prev) => ({ ...prev, [company.id]: { status: 'passed', stage: 3 } }));
+          const offer = generateOffer(company, item.egoAtPass);
+          setInbox((prev) => [
+            { id: uid('msg'), day, type: 'offer', companyId: company.id, title: `הצעת עבודה רשמית מ-${company.name}!`, offer, status: 'active' },
+            ...prev,
+          ]);
+        }
+      });
+    }
+
+    // Dry spell of a week or more with no invites/progress/offers: a wave of self-doubt.
+    const DRY_SPELL_DAYS = 7;
+    if (day - lastArrivalDayRef.current >= DRY_SPELL_DAYS && day - lastSelfDoubtDayRef.current >= DRY_SPELL_DAYS) {
+      lastSelfDoubtDayRef.current = day;
+      const msg = SELF_DOUBT_MESSAGES[Math.floor(Math.random() * SELF_DOUBT_MESSAGES.length)];
+      setStress((s) => clamp(s + msg.stressDelta, 0, 100));
+      setInbox((prev) => [{ id: uid('msg'), day, type: 'system', title: msg.title, body: msg.body }, ...prev]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [day]);
@@ -804,34 +881,39 @@ export default function ContractHunterGame() {
     });
   }, [now]);
 
-  function startInterview(company) {
+  function startInterview(company, stage = 0) {
     if (activeInterview || gameOver) return;
-    setPipeline((prev) => ({ ...prev, [company.id]: { status: 'in_progress', stage: 0 } }));
-    setInbox((prev) => prev.filter((m) => !(m.type === 'invite' && m.companyId === company.id)));
-    setActiveInterview(company);
+    setPipeline((prev) => ({ ...prev, [company.id]: { status: 'in_progress', stage } }));
+    setInbox((prev) => prev.filter((m) => !((m.type === 'invite' || m.type === 'stage_invite') && m.companyId === company.id)));
+    setActiveInterview({ company, stage });
   }
 
-  function handleInterviewComplete(company, result) {
+  function handleInterviewComplete(company, stage, result) {
     setActiveInterview(null);
     const newStress = clamp(stress + result.stressDelta, 0, 100);
     setStress(newStress);
+    const newEgo = clamp(ego + (result.egoDelta || 0), 0, 100);
+    setEgo(newEgo);
 
-    if (result.passed) {
-      const newEgo = clamp(ego + result.egoDelta, 0, 100);
-      setEgo(newEgo);
-      setPipeline((prev) => ({ ...prev, [company.id]: { status: 'passed', stage: 3 } }));
-      const offer = generateOffer(company, newEgo);
-      setInbox((prev) => [
-        { id: uid('msg'), day, type: 'offer', companyId: company.id, title: `הצעת עבודה רשמית מ-${company.name}!`, offer, status: 'active' },
-        ...prev,
-      ]);
-    } else {
-      setEgo((e) => clamp(e + (result.egoDelta || 0), 0, 100));
-      setPipeline((prev) => ({ ...prev, [company.id]: { status: 'rejected', stage: result.stageFailedAt } }));
+    if (!result.passed) {
+      lastArrivalDayRef.current = day;
+      setPipeline((prev) => ({ ...prev, [company.id]: { status: 'rejected', stage } }));
       setInbox((prev) => [
         { id: uid('msg'), day, type: 'rejection', companyId: company.id, title: `תשובה מ-${company.name}`, body: result.rejectionNote || 'לצערנו החלטנו להמשיך עם מועמדים אחרים בשלב זה.' },
         ...prev,
       ]);
+      return;
+    }
+
+    // Passed this stage — the next step (next stage invite, or the final offer) arrives
+    // as a separate mail after a short delay, instead of continuing in the same modal.
+    const delay = 1 + Math.floor(Math.random() * 2); // 1-2 days
+    if (stage < 2) {
+      setPipeline((prev) => ({ ...prev, [company.id]: { status: 'awaiting_stage', stage: stage + 1 } }));
+      pendingArrivalsRef.current.push({ id: uid('pend'), dueDay: day + delay, companyId: company.id, kind: 'stage_invite', stage: stage + 1 });
+    } else {
+      setPipeline((prev) => ({ ...prev, [company.id]: { status: 'awaiting_offer', stage: 3 } }));
+      pendingArrivalsRef.current.push({ id: uid('pend'), dueDay: day + delay, companyId: company.id, kind: 'offer', egoAtPass: newEgo });
     }
   }
 
@@ -930,12 +1012,18 @@ export default function ContractHunterGame() {
                 const statusLabel = {
                   invited: 'ממתין לתחילת ראיון',
                   in_progress: 'בתהליך ראיונות',
+                  awaiting_stage: 'ממתין לעדכון מהחברה',
+                  stage_ready: 'התקדמות חדשה בתיבה!',
+                  awaiting_offer: 'ממתין להצעה רשמית',
                   passed: 'הצעה נשלחה',
                   rejected: 'נדחה',
                 }[entry.status];
                 const statusColor = {
                   invited: 'text-blue-400',
                   in_progress: 'text-yellow-400',
+                  awaiting_stage: 'text-gray-400',
+                  stage_ready: 'text-cyan-400',
+                  awaiting_offer: 'text-gray-400',
                   passed: 'text-green-400',
                   rejected: 'text-red-500',
                 }[entry.status];
@@ -953,7 +1041,7 @@ export default function ContractHunterGame() {
       </div>
 
       {activeInterview && !gameOver && (
-        <InterviewModal company={activeInterview} onComplete={handleInterviewComplete} />
+        <InterviewModal company={activeInterview.company} stage={activeInterview.stage} onComplete={handleInterviewComplete} />
       )}
     </div>
   );
