@@ -1781,11 +1781,33 @@ function MessageCard({ message, company, onStartInterview, onAccept, now, interv
   return null;
 }
 
+function LeaderboardList({ entries, loading }) {
+  if (loading) return <p className="text-xs text-gray-500 py-2">טוען...</p>;
+  if (!entries) return null;
+  if (entries.length === 0) return <p className="text-xs text-gray-500 py-2">עדיין אין ניקוד בלוח התהילה — היה/י הראשון/ה!</p>;
+  return (
+    <div className="max-h-56 overflow-y-auto flex flex-col gap-0.5">
+      {entries.map((e, idx) => (
+        <div key={idx} className="flex items-center gap-2 text-xs py-1.5 border-b border-gray-900">
+          <span className="text-gray-600 w-5 shrink-0">{idx + 1}.</span>
+          <span className="text-gray-200 flex-1 truncate">{e.name}</span>
+          <span className="text-gray-500 flex-1 truncate">{e.company}</span>
+          <span dir="ltr" className="text-yellow-400 font-bold shrink-0">{e.score}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ============================================================================
 // END SCREEN
 // ============================================================================
 
-function EndScreen({ result, onRestart }) {
+function EndScreen({
+  result, onRestart,
+  leaderboardName, onNameChange, submitStatus, submitRank, onSubmitScore,
+  showLeaderboard, onToggleLeaderboard, leaderboardEntries, leaderboardLoading,
+}) {
   if (result.type === 'burnout') {
     return (
       <div className="min-h-screen flex items-center justify-center p-6">
@@ -1853,6 +1875,47 @@ function EndScreen({ result, onRestart }) {
           </div>
         </div>
 
+        <div className="bg-gray-950 rounded-xl p-5 mb-6 border border-gray-800">
+          <h3 className="text-sm font-bold text-gray-400 mb-3 flex items-center gap-2">
+            <Award size={16} className="text-yellow-400" /> לוח התהילה
+          </h3>
+          {submitStatus === 'submitted' ? (
+            <p className="text-sm text-green-400 mb-1">
+              נשלח בהצלחה!{submitRank ? ` דורגת במקום ${submitRank}.` : ''}
+            </p>
+          ) : (
+            <div className="flex gap-2 mb-1">
+              <input
+                value={leaderboardName}
+                onChange={(e) => onNameChange(e.target.value)}
+                maxLength={20}
+                placeholder="השם שלך"
+                className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-100 placeholder-gray-600"
+              />
+              <button
+                disabled={!leaderboardName.trim() || submitStatus === 'submitting'}
+                onClick={() => onSubmitScore({
+                  company: company.name, role: offer.role, score: overall,
+                  jobSatisfaction, walletPrestige, sanityQoL, day: finalDay,
+                })}
+                className="bg-yellow-600 hover:bg-yellow-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg px-4 transition-colors shrink-0"
+              >
+                {submitStatus === 'submitting' ? 'שולח...' : 'שלח ציון'}
+              </button>
+            </div>
+          )}
+          {submitStatus === 'error' && <p className="text-xs text-red-400 mb-1">השליחה נכשלה - נסה/י שוב מאוחר יותר.</p>}
+
+          <button onClick={onToggleLeaderboard} className="text-xs text-blue-400 hover:underline mt-2">
+            {showLeaderboard ? 'הסתר לוח תהילה' : 'הצג לוח תהילה'}
+          </button>
+          {showLeaderboard && (
+            <div className="mt-2 pt-2 border-t border-gray-800">
+              <LeaderboardList entries={leaderboardEntries} loading={leaderboardLoading} />
+            </div>
+          )}
+        </div>
+
         <button onClick={onRestart} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg px-6 py-3 flex items-center justify-center gap-2">
           <RefreshCw size={16} /> ציד חדש
         </button>
@@ -1877,6 +1940,13 @@ export default function ContractHunterGame() {
   const [now, setNow] = useState(Date.now());
   const [highlightId, setHighlightId] = useState(null);
 
+  const [leaderboardName, setLeaderboardName] = useState('');
+  const [submitStatus, setSubmitStatus] = useState('idle'); // idle | submitting | submitted | error
+  const [submitRank, setSubmitRank] = useState(null);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [leaderboardEntries, setLeaderboardEntries] = useState(null);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+
   const contactedRef = useRef(new Set());
   // Queue of delayed inbox arrivals: { id, dueDay, companyId, kind: 'stage_invite' | 'offer', stage, egoAtPass }
   const pendingArrivalsRef = useRef([]);
@@ -1899,7 +1969,48 @@ export default function ContractHunterGame() {
     setActiveInterview(null);
     setGameOver(null);
     setNow(Date.now());
+    setLeaderboardName('');
+    setSubmitStatus('idle');
+    setSubmitRank(null);
     setStarted(true);
+  }
+
+  async function loadLeaderboard() {
+    setLeaderboardLoading(true);
+    try {
+      const res = await fetch('/api/leaderboard');
+      if (!res.ok) throw new Error('bad response');
+      setLeaderboardEntries(await res.json());
+    } catch {
+      setLeaderboardEntries([]);
+    } finally {
+      setLeaderboardLoading(false);
+    }
+  }
+
+  function toggleLeaderboard() {
+    setShowLeaderboard((s) => {
+      const next = !s;
+      if (next) loadLeaderboard();
+      return next;
+    });
+  }
+
+  async function submitScore(payload) {
+    setSubmitStatus('submitting');
+    try {
+      const res = await fetch('/api/submit-score', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: leaderboardName.trim(), ...payload }),
+      });
+      if (!res.ok) throw new Error('bad response');
+      const data = await res.json();
+      setSubmitRank(data.rank ?? null);
+      setSubmitStatus('submitted');
+    } catch {
+      setSubmitStatus('error');
+    }
   }
 
   // Day loop — 1 day every 4 seconds
@@ -2110,6 +2221,15 @@ export default function ContractHunterGame() {
           >
             <PlayCircle size={20} /> התחל ציד
           </button>
+
+          <button onClick={toggleLeaderboard} className="mt-5 text-sm text-gray-400 hover:text-gray-200 flex items-center gap-1.5 mx-auto">
+            <Award size={14} /> {showLeaderboard ? 'הסתר לוח תהילה' : 'לוח התהילה'}
+          </button>
+          {showLeaderboard && (
+            <div className="mt-3 bg-gray-900/50 border border-gray-800 rounded-xl p-4 text-right">
+              <LeaderboardList entries={leaderboardEntries} loading={leaderboardLoading} />
+            </div>
+          )}
         </div>
       </div>
     );
@@ -2118,7 +2238,13 @@ export default function ContractHunterGame() {
   if (gameOver) {
     return (
       <div dir="rtl" className="min-h-screen bg-gradient-to-b from-gray-950 to-gray-900 text-gray-100 font-sans">
-        <EndScreen result={gameOver} onRestart={resetGame} />
+        <EndScreen
+          result={gameOver} onRestart={resetGame}
+          leaderboardName={leaderboardName} onNameChange={setLeaderboardName}
+          submitStatus={submitStatus} submitRank={submitRank} onSubmitScore={submitScore}
+          showLeaderboard={showLeaderboard} onToggleLeaderboard={toggleLeaderboard}
+          leaderboardEntries={leaderboardEntries} leaderboardLoading={leaderboardLoading}
+        />
       </div>
     );
   }
