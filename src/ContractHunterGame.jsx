@@ -25,26 +25,192 @@ const CULTURE_ICONS = {
   startup: Stethoscope,
 };
 
+// Real Israeli tech hubs & business parks (never real company/building names), weighted so
+// Tel Aviv-area locations dominate like the real distribution, per
+// https://www.dialog.co.il/new-world/trends/blogs/israeli-high-tech-location
+// 'kind: park' entries are already a specific-enough real place name on their own;
+// 'kind: city' entries get a fictional building/floor appended for flavor.
+const REAL_PLACES = [
+  { name: 'תל אביב', kind: 'city', weight: 20 },
+  { name: 'קריית עתידים, תל אביב', kind: 'park', weight: 6 },
+  { name: 'רמת החייל, תל אביב', kind: 'park', weight: 6 },
+  { name: 'שדרות רוטשילד, תל אביב', kind: 'park', weight: 4 },
+  { name: 'הרצליה פיתוח', kind: 'park', weight: 15 },
+  { name: 'רעננה', kind: 'city', weight: 4 },
+  { name: 'נתניה', kind: 'city', weight: 4 },
+  { name: 'הוד השרון', kind: 'city', weight: 3 },
+  { name: 'רמת גן', kind: 'city', weight: 3 },
+  { name: 'בת ים', kind: 'city', weight: 2 },
+  { name: 'גבעתיים', kind: 'city', weight: 2 },
+  { name: 'ראש העין', kind: 'city', weight: 2 },
+  { name: 'לוד', kind: 'city', weight: 2 },
+  { name: 'שוהם', kind: 'city', weight: 2 },
+  { name: 'חולון', kind: 'city', weight: 2 },
+  { name: 'קריית אריה, פתח תקווה', kind: 'park', weight: 5 },
+  { name: 'סגולה, פתח תקווה', kind: 'park', weight: 3 },
+  { name: 'קריית מטלון, פתח תקווה', kind: 'park', weight: 3 },
+  { name: 'פארק עופר לעסקים, פתח תקווה', kind: 'park', weight: 3 },
+  { name: 'פארק מת"ם, חיפה', kind: 'park', weight: 4 },
+  { name: 'חיפה', kind: 'city', weight: 2 },
+  { name: 'כרמיאל', kind: 'city', weight: 2 },
+  { name: 'פארק הייטק, יקנעם עילית', kind: 'park', weight: 3 },
+  { name: 'רחובות', kind: 'city', weight: 2 },
+  { name: 'יבנה', kind: 'city', weight: 2 },
+  { name: 'עומר', kind: 'city', weight: 2 },
+  { name: 'פארק הייטק, באר שבע', kind: 'park', weight: 3 },
+  { name: 'קריית גת', kind: 'city', weight: 2 },
+  { name: 'ירושלים', kind: 'city', weight: 2 },
+];
+
+// Fictional tower names (generic nature/founder themed) — never a real developer's brand.
+const BUILDING_STEMS = [
+  'מגדל אורנים', 'מגדל ורדים', 'מגדל הצפונים', 'מגדל המייסדים', 'מגדל קסטן',
+  'מגדל הגפן', 'מגדל התכלת', 'מגדל הזית', 'מגדל האלון', 'מגדל השחר',
+  'מגדל הברוש', 'מגדל הדקל',
+];
+
+function pickWeighted(rng, items) {
+  const total = items.reduce((sum, it) => sum + it.weight, 0);
+  let r = rng() * total;
+  for (const it of items) {
+    if (r < it.weight) return it;
+    r -= it.weight;
+  }
+  return items[items.length - 1];
+}
+
+// Deterministic PRNG (fixed seed) so the 120-company roster is varied but stable across loads.
+function mulberry32(seed) {
+  return function () {
+    seed |= 0; seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const FINTECH_STEMS = [
+  'טוראס פייננס', 'קרדיטקס גלובל', 'וולטבנק דיגיטל', 'פינטרום קפיטל', 'זניט טרייד סיסטמס',
+  'אורורה פיננסים גלובלי', 'נובהבנק דיגיטל', 'קוואנטום קפיטל מרקטס', 'סטרלינג ריסק אנליטיקס',
+  'מרידיאן פיננס טק', 'אפקס טרייד סולושנס', 'הליוס בנקינג גרופ', 'פרוטיום קפיטל',
+  'אטלס וולת׳ טכנולוגיות', 'ג׳נסיס פיננשיאל סיסטמס',
+];
+const FINTECH_ROLES = ['Senior Quant Engineer', 'Head of Risk Algorithms', 'Principal Trading Systems Architect', 'Senior Financial Data Engineer', 'Lead Fraud Detection Engineer'];
+const FINTECH_DESCS = [
+  'ענקית פינטק עם תרבות "זאבי וול-סטריט", בונוסים אגדיים ולוחות זמנים בלתי אפשריים.',
+  'מודלים פיננסיים עתירי סיכון, שעות עבודה שלא נגמרות, ותביעה למחויבות מוחלטת.',
+  'מערכות מסחר בזמן אמת, לחץ יומיומי אמיתי, אך שם מוכר ומכובד בשוק.',
+  'צוות גיוס אגרסיבי, בונוסי חתימה נדיבים, ותרבות של "תמיד זמינים".',
+  'אלגוריתמי מסחר בתדירות גבוהה תחת לחץ מתמיד להוכיח תוצאות רבעוניות.',
+];
+
+const CORPORATE_STEMS = [
+  'מגה-סופט ישראל', 'אורביטל סיסטמס גלובל', 'טיטאן קלאוד קורפ׳', 'אינפיניטי טכנולוגיות',
+  'קוואזר גלובל סופטוור', 'זניקס אנטרפרייז סולושנס', 'פולאריס דאטה סיסטמס', 'וורטקס קלאוד גלובל',
+  'הורייזן טכנולוגיות בינלאומי', 'סטרטוספיר סופטוור', 'נקסוס אינטליג׳נס גלובל', 'אומניקורפ דיגיטל',
+  'פרונטיר קומפיוט גלובל', 'סינרג׳י סיסטמס בינלאומי', 'יונייטד קלאוד אנטרפרייז',
+];
+const CORPORATE_ROLES = ['Principal Software Engineer', 'Staff AI Research Engineer', 'Principal Cloud Architect', 'Staff Machine Learning Engineer', 'Principal Platform Engineer'];
+const CORPORATE_DESCS = [
+  'חמישה שלבי ראיונות, שאלות אלגוריתמים קשות, ותהליכים ביורוקרטיים ארוכים - אך יציבות ונוצצת בקורות החיים.',
+  'מחקר AI ברמה עולמית בתוך מכונה תאגידית ענקית עם תהליכי אישור אינסופיים.',
+  'תשתיות ענן בקנה מידה עולמי, ריאיונות התנהגותיים ממוסגרים ונוקשים.',
+  'צוותים גלובליים, תהליכי עבודה מתועדים לפרטי פרטים, וקידום איטי אך יציב.',
+  'שם מוכר בעולם, פרויקטים בקנה מידה עצום, ותרבות ניהולית שמרנית.',
+];
+
+const SAAS_STEMS = [
+  'פלואו-בייס SaaS פתרונות ארגוניים', 'נימבוס וורקספייס', 'קונטיניום B2B פלטפורמות', 'סטרימליין דאטה SaaS',
+  'ברייטפאת׳ וורקפלואו', 'קלירדסק אנטרפרייז SaaS', 'גרידפוינט אנליטיקס', 'וורקבנץ׳ פתרונות ענן',
+  'סימפלסטאק ארגוני', 'פיוז׳ן דאטה פלטפורמות', 'אפסטרים SaaS סולושנס', 'בלופרינט וורקספייס',
+  'קלירליין ביזנס SaaS', 'נורת׳סטאר אנטרפרייז', 'סטדיפיי פתרונות ארגוניים',
+];
+const SAAS_ROLES = ['Senior Backend Engineer', 'Senior Full-Stack Engineer', 'Senior Data Engineer', 'Senior DevOps Engineer', 'Senior Product Engineer'];
+const SAAS_DESCS = [
+  'תרבות בוגרת עם תקשורת פתוחה, סטאק טכנולוגי מאוזן וגמישות היברידית אמיתית.',
+  'עבודה מרחוק מלאה, קצב סביר, ותהליך גיוס שקוף וכן.',
+  'פלטפורמת דאטה ארגונית יציבה עם ניהול בוגר ותהליכי עבודה ברורים.',
+  'צמיחה יציבה ולא מסעירה, אך עם איזון בריא בין עבודה לחיים.',
+  'לקוחות ארגוניים גדולים, מוצר בוגר, וצוות שמאמין בשקט התפעולי.',
+];
+
+const STARTUP_STEMS = [
+  "ניורוג'ן הבריאות הדיגיטלית", 'ביומטריקס AI לאבס', 'וייטל-סקאן טכנולוגיות רפואיות', 'סינפסה AI רפואי',
+  'הליקאל דיאגנוסטיקס', 'קרדיאק AI סטארטאפ', "ג'נום AI מעבדות", 'מדסקאן רובוטיקה',
+  'פולסאר הבריאות הדיגיטלית', 'תרפיה AI לאבס', 'ויטליטי דיאגנוסטיקס חכמות', 'אונקוסקאן AI',
+  'קוגניסקאן דיאגנוסטיקה', 'ביוסינת AI מעבדות', 'אקסון הבריאות הדיגיטלית',
+];
+const STARTUP_ROLES = ['Principal AI Architect', 'Founding ML Engineer', 'Lead Agentic Systems Engineer', 'Founding Backend Engineer', 'Principal Computer Vision Engineer'];
+const STARTUP_DESCS = [
+  'אתגרים טכנולוגיים מרתקים בקצה הידע של Agentic AI, אך הכל עלול להשתנות מחר בבוקר.',
+  'צוות מייסדים קטן, אופציות נכבדות, וכאוס יומיומי מוחלט.',
+  'בניית סוכני AI אוטונומיים למכשור רפואי - מרתק, לא יציב, ולא לחלשי לב.',
+  'פיבוט אחרון קרה לפני חודש, וכנראה שיהיה עוד אחד בקרוב.',
+  'מימון סבב הבא תלוי בדמו הבא - הלחץ האמיתי מתחיל כל בוקר מחדש.',
+];
+
+// Builds 2 companies per name-stem (different place/role/desc/stats each), so 15 stems -> 30 companies.
+function buildArchetypeCompanies({ idPrefix, culture, stems, roles, descs, band, rng }) {
+  const companies = [];
+  stems.forEach((stem, i) => {
+    let prevPlaceName = null;
+    for (let k = 0; k < 2; k++) {
+      // Avoid pairing the same stem with the same place twice (would produce two identically-named companies).
+      let place = pickWeighted(rng, REAL_PLACES);
+      for (let attempt = 0; attempt < 4 && place.name === prevPlaceName; attempt++) {
+        place = pickWeighted(rng, REAL_PLACES);
+      }
+      prevPlaceName = place.name;
+
+      let locationLabel;
+      if (place.kind === 'park') {
+        locationLabel = place.name;
+      } else {
+        const building = BUILDING_STEMS[Math.floor(rng() * BUILDING_STEMS.length)];
+        const includeFloor = rng() < 0.6;
+        const floor = 3 + Math.floor(rng() * 45);
+        locationLabel = includeFloor ? `${building}, ${place.name}, קומה ${floor}` : `${building}, ${place.name}`;
+      }
+
+      const roleTitle = roles[Math.floor(rng() * roles.length)];
+      const desc = descs[Math.floor(rng() * descs.length)];
+      const techInterest = band.techInterestMin + Math.floor(rng() * (band.techInterestMax - band.techInterestMin + 1));
+      const prestige = band.prestigeMin + Math.floor(rng() * (band.prestigeMax - band.prestigeMin + 1));
+      const wfhDays = band.wfhMin + Math.floor(rng() * (band.wfhMax - band.wfhMin + 1));
+      const optionGrants = band.optionsMin + Math.floor(rng() * (band.optionsMax - band.optionsMin + 1));
+      const flexHours = band.flexMin + Math.floor(rng() * (band.flexMax - band.flexMin + 1));
+      const stressPerStage = band.stressMin + Math.floor(rng() * (band.stressMax - band.stressMin + 1));
+      const salaryMin = Math.round((band.salaryMinLow + rng() * (band.salaryMinHigh - band.salaryMinLow)) / 500) * 500;
+      const salaryMax = Math.round((salaryMin + band.spreadLow + rng() * (band.spreadHigh - band.spreadLow)) / 500) * 500;
+      companies.push({
+        id: `${idPrefix}${i}${k}`, culture,
+        name: `${stem} — ${locationLabel}`,
+        roleTitle, salaryMin, salaryMax, techInterest, prestige, wfhDays, optionGrants, flexHours, stressPerStage, desc,
+      });
+    }
+  });
+  return companies;
+}
+
+const companyRng = mulberry32(1337);
+
 const COMPANIES = [
-  // --- THE OVERBEARING FINTECH (Shealtieli Tower) ---
-  { id: 'fin1', culture: 'fintech', name: 'טוראס פייננס — מגדל שאלתיאלי, קומה 54', roleTitle: 'Senior Quant Engineer', salaryMin: 42000, salaryMax: 68000, techInterest: 5, prestige: 5, wfhDays: 1, optionGrants: 1, flexHours: 1, stressPerStage: 16, desc: 'ענקית פינטק עם תרבות "זאבי וול-סטריט", בונוסים אגדיים ולוחות זמנים בלתי אפשריים.' },
-  { id: 'fin2', culture: 'fintech', name: 'קרדיטקס גלובל — מגדל שאלתיאלי, קומה 61', roleTitle: 'Head of Risk Algorithms', salaryMin: 45000, salaryMax: 72000, techInterest: 4, prestige: 5, wfhDays: 0, optionGrants: 2, flexHours: 0, stressPerStage: 18, desc: 'מודלים פיננסיים עתירי סיכון, שעות עבודה שלא נגמרות, ותביעה למחויבות מוחלטת.' },
-  { id: 'fin3', culture: 'fintech', name: 'וולטבנק דיגיטל — מגדל שאלתיאלי, קומה 48', roleTitle: 'Principal Trading Systems Architect', salaryMin: 40000, salaryMax: 65000, techInterest: 6, prestige: 4, wfhDays: 1, optionGrants: 1, flexHours: 1, stressPerStage: 15, desc: 'מערכות מסחר בזמן אמת, לחץ יומיומי אמיתי, אך שם מוכר ומכובד בשוק.' },
-
-  // --- THE GLOBAL CORPORATE TECH GIANT ---
-  { id: 'corp1', culture: 'corporate', name: 'מגה-סופט ישראל (מטה עולמי)', roleTitle: 'Principal Software Engineer', salaryMin: 35000, salaryMax: 55000, techInterest: 7, prestige: 5, wfhDays: 2, optionGrants: 2, flexHours: 1, stressPerStage: 12, desc: 'חמישה שלבי ראיונות, שאלות אלגוריתמים קשות, ותהליכים ביורוקרטיים ארוכים - אך יציבות ונוצצת בקורות החיים.' },
-  { id: 'corp2', culture: 'corporate', name: 'אורביטל סיסטמס גלובל', roleTitle: 'Staff AI Research Engineer', salaryMin: 38000, salaryMax: 58000, techInterest: 8, prestige: 5, wfhDays: 2, optionGrants: 2, flexHours: 1, stressPerStage: 13, desc: 'מחקר AI ברמה עולמית בתוך מכונה תאגידית ענקית עם תהליכי אישור אינסופיים.' },
-  { id: 'corp3', culture: 'corporate', name: 'טיטאן קלאוד קורפ׳', roleTitle: 'Principal Cloud Architect', salaryMin: 36000, salaryMax: 56000, techInterest: 6, prestige: 4, wfhDays: 2, optionGrants: 1, flexHours: 1, stressPerStage: 12, desc: 'תשתיות ענן בקנה מידה עולמי, ריאיונות התנהגותיים ממוסגרים ונוקשים.' },
-
-  // --- THE MATURE B2B SAAS ENTERPRISE ---
-  { id: 'saas1', culture: 'saas', name: 'פלואו-בייס SaaS פתרונות ארגוניים', roleTitle: 'Senior Backend Engineer', salaryMin: 28000, salaryMax: 42000, techInterest: 6, prestige: 3, wfhDays: 4, optionGrants: 1, flexHours: 3, stressPerStage: 7, desc: 'תרבות בוגרת עם תקשורת פתוחה, סטאק טכנולוגי מאוזן וגמישות היברידית אמיתית.' },
-  { id: 'saas2', culture: 'saas', name: 'נימבוס וורקספייס בע״מ', roleTitle: 'Senior Full-Stack Engineer', salaryMin: 27000, salaryMax: 40000, techInterest: 5, prestige: 3, wfhDays: 5, optionGrants: 1, flexHours: 3, stressPerStage: 6, desc: 'עבודה מרחוק מלאה, קצב סביר, ותהליך גיוס שקוף וכן.' },
-  { id: 'saas3', culture: 'saas', name: 'קונטיניום B2B פלטפורמות', roleTitle: 'Senior Data Engineer', salaryMin: 29000, salaryMax: 44000, techInterest: 6, prestige: 3, wfhDays: 3, optionGrants: 1, flexHours: 2, stressPerStage: 7, desc: 'פלטפורמת דאטה ארגונית יציבה עם ניהול בוגר ותהליכי עבודה ברורים.' },
-
-  // --- THE CHAOTIC MEDICAL-TECH STARTUP ---
-  { id: 'start1', culture: 'startup', name: "ניורוג'ן הבריאות הדיגיטלית", roleTitle: 'Principal AI Architect', salaryMin: 25000, salaryMax: 50000, techInterest: 10, prestige: 2, wfhDays: 2, optionGrants: 3, flexHours: 3, stressPerStage: 11, desc: 'אתגרים טכנולוגיים מרתקים בקצה הידע של Agentic AI, אך הכל עלול להשתנות מחר בבוקר.' },
-  { id: 'start2', culture: 'startup', name: 'ביומטריקס AI לאבס', roleTitle: 'Founding ML Engineer', salaryMin: 24000, salaryMax: 48000, techInterest: 9, prestige: 2, wfhDays: 3, optionGrants: 3, flexHours: 3, stressPerStage: 10, desc: 'צוות מייסדים קטן, אופציות נכבדות, וכאוס יומיומי מוחלט.' },
-  { id: 'start3', culture: 'startup', name: 'וייטל-סקאן טכנולוגיות רפואיות', roleTitle: 'Lead Agentic Systems Engineer', salaryMin: 26000, salaryMax: 52000, techInterest: 10, prestige: 2, wfhDays: 2, optionGrants: 2, flexHours: 2, stressPerStage: 12, desc: 'בניית סוכני AI אוטונומיים למכשור רפואי - מרתק, לא יציב, ולא לחלשי לב.' },
+  ...buildArchetypeCompanies({
+    idPrefix: 'fin', culture: 'fintech', stems: FINTECH_STEMS, roles: FINTECH_ROLES, descs: FINTECH_DESCS, rng: companyRng,
+    band: { techInterestMin: 4, techInterestMax: 6, prestigeMin: 4, prestigeMax: 5, wfhMin: 0, wfhMax: 1, optionsMin: 0, optionsMax: 2, flexMin: 0, flexMax: 1, stressMin: 14, stressMax: 19, salaryMinLow: 38000, salaryMinHigh: 46000, spreadLow: 20000, spreadHigh: 30000 },
+  }),
+  ...buildArchetypeCompanies({
+    idPrefix: 'corp', culture: 'corporate', stems: CORPORATE_STEMS, roles: CORPORATE_ROLES, descs: CORPORATE_DESCS, rng: companyRng,
+    band: { techInterestMin: 6, techInterestMax: 8, prestigeMin: 4, prestigeMax: 5, wfhMin: 1, wfhMax: 2, optionsMin: 1, optionsMax: 2, flexMin: 1, flexMax: 1, stressMin: 11, stressMax: 14, salaryMinLow: 32000, salaryMinHigh: 40000, spreadLow: 18000, spreadHigh: 24000 },
+  }),
+  ...buildArchetypeCompanies({
+    idPrefix: 'saas', culture: 'saas', stems: SAAS_STEMS, roles: SAAS_ROLES, descs: SAAS_DESCS, rng: companyRng,
+    band: { techInterestMin: 5, techInterestMax: 6, prestigeMin: 3, prestigeMax: 3, wfhMin: 3, wfhMax: 5, optionsMin: 1, optionsMax: 1, flexMin: 2, flexMax: 3, stressMin: 6, stressMax: 8, salaryMinLow: 25000, salaryMinHigh: 30000, spreadLow: 12000, spreadHigh: 16000 },
+  }),
+  ...buildArchetypeCompanies({
+    idPrefix: 'start', culture: 'startup', stems: STARTUP_STEMS, roles: STARTUP_ROLES, descs: STARTUP_DESCS, rng: companyRng,
+    band: { techInterestMin: 9, techInterestMax: 10, prestigeMin: 2, prestigeMax: 2, wfhMin: 2, wfhMax: 3, optionsMin: 2, optionsMax: 3, flexMin: 2, flexMax: 3, stressMin: 9, stressMax: 13, salaryMinLow: 22000, salaryMinHigh: 27000, spreadLow: 22000, spreadHigh: 27000 },
+  }),
 ];
 
 const QUESTION_BANK = [
@@ -121,10 +287,742 @@ const QUESTION_BANK = [
     ],
     correctAnswer: 'סיבוכיות חישובית וזיכרון שגדלה ריבועית (O(n²)) עם אורך הרצף',
   },
+  {
+    id: 'q9', topic: 'Time Complexity',
+    question: 'מהי סיבוכיות הזמן הממוצעת של חיפוש בטבלת גיבוב (Hash Table) שמומשה היטב?',
+    options: ['O(1)', 'O(log n)', 'O(n)', 'O(n log n)'],
+    correctAnswer: 'O(1)',
+  },
+  {
+    id: 'q10', topic: 'Time Complexity',
+    question: 'מהי סיבוכיות הזמן של מיזוג שתי רשימות ממוינות באורכים n ו-m לרשימה ממוינת אחת?',
+    options: ['O(n+m)', 'O(n*m)', 'O(log(n+m))', 'O(n^2)'],
+    correctAnswer: 'O(n+m)',
+  },
+  {
+    id: 'q11', topic: 'Time Complexity',
+    question: 'מהי סיבוכיות הזמן של גישה לאיבר לפי אינדקס במערך (array)?',
+    options: ['O(1)', 'O(n)', 'O(log n)', 'O(n log n)'],
+    correctAnswer: 'O(1)',
+  },
+  {
+    id: 'q12', topic: 'Time Complexity',
+    question: 'מהי סיבוכיות הזמן של אלגוריתם חיפוש בינארי (Binary Search) על מערך ממוין באורך n?',
+    options: ['O(log n)', 'O(n)', 'O(1)', 'O(n^2)'],
+    correctAnswer: 'O(log n)',
+  },
+  {
+    id: 'q13', topic: 'KV Cache',
+    question: 'מה קורה לגודל ה-KV Cache ככל שאורך הרצף (context length) גדל במהלך ההסקה?',
+    options: [
+      'הוא גדל באופן ליניארי עם אורך הרצף, שכן כל טוקן נוסף מוסיף Key ו-Value שיש לאחסן',
+      'הוא נשאר קבוע ללא תלות באורך הרצף',
+      'הוא קטן ככל שיש יותר טוקנים בזכות דחיסה אוטומטית',
+      'הוא תלוי רק בגודל אוצר המילים (vocabulary) של המודל',
+    ],
+    correctAnswer: 'הוא גדל באופן ליניארי עם אורך הרצף, שכן כל טוקן נוסף מוסיף Key ו-Value שיש לאחסן',
+  },
+  {
+    id: 'q14', topic: 'KV Cache',
+    question: 'מהי מטרת טכניקת Multi-Query Attention (MQA)?',
+    options: [
+      'לצמצם את גודל ה-KV Cache על ידי שיתוף אותם Key ו-Value בין כל ראשי האטנשן (heads)',
+      'להוסיף עוד ראשי אטנשן כדי לשפר דיוק',
+      'להחליף את מנגנון ה-Softmax בפונקציה מהירה יותר',
+      'לאמן את המודל על שאילתות מרובות בו-זמנית',
+    ],
+    correctAnswer: 'לצמצם את גודל ה-KV Cache על ידי שיתוף אותם Key ו-Value בין כל ראשי האטנשן (heads)',
+  },
+  {
+    id: 'q15', topic: 'KV Cache',
+    question: 'מדוע quantization של ה-KV Cache (למשל ל-int8) שימושי בזמן הסקה (inference)?',
+    options: [
+      'מפחית את צריכת הזיכרון של הקאש ומאפשר רצפים ארוכים יותר או batch גדול יותר, במחיר קטן בדיוק',
+      'מגדיל את דיוק התחזיות של המודל',
+      'מבטל את הצורך בשמירת Value ומשאיר רק Key',
+      'מאיץ את שלב האימון המקדים (pretraining) בלבד',
+    ],
+    correctAnswer: 'מפחית את צריכת הזיכרון של הקאש ומאפשר רצפים ארוכים יותר או batch גדול יותר, במחיר קטן בדיוק',
+  },
+  {
+    id: 'q16', topic: 'KV Cache',
+    question: 'מה ההבדל המרכזי בין שלב ה-Prefill לשלב ה-Decode בהסקת LLM?',
+    options: [
+      'ב-Prefill מעבדים את כל הפרומפט במקביל וממלאים את הקאש, ואילו ב-Decode מייצרים טוקן אחד בכל פעם תוך שימוש בקאש',
+      'Prefill מתבצע רק פעם אחת בחיי המודל, בזמן האימון',
+      'Decode הוא שלב שמתבצע לפני שהמשתמש שולח פרומפט',
+      'אין הבדל מהותי, אלו שני שמות לאותו שלב',
+    ],
+    correctAnswer: 'ב-Prefill מעבדים את כל הפרומפט במקביל וממלאים את הקאש, ואילו ב-Decode מייצרים טוקן אחד בכל פעם תוך שימוש בקאש',
+  },
+  {
+    id: 'q17', topic: 'Agentic AI',
+    question: 'מהו ReAct (Reason + Act) בהקשר של סוכני AI?',
+    options: [
+      'תבנית שבה המודל מתחלף בין חשיבה מילולית (reasoning) לביצוע פעולות (tool calls), ומשתמש בתוצאה כדי להחליט על הצעד הבא',
+      'שיטת אימון שמשלבת RL עם Supervised Learning',
+      'ארכיטקטורת רשת נוירונים עם שני ראשי פלט',
+      'פרוטוקול תקשורת בין שני סוכני AI שונים',
+    ],
+    correctAnswer: 'תבנית שבה המודל מתחלף בין חשיבה מילולית (reasoning) לביצוע פעולות (tool calls), ומשתמש בתוצאה כדי להחליט על הצעד הבא',
+  },
+  {
+    id: 'q18', topic: 'Agentic AI',
+    question: "מהי הבעיה המרכזית ב'תכנון ארוך טווח' (long-horizon planning) עבור סוכן אוטונומי?",
+    options: [
+      'שגיאות מצטברות (error accumulation) לאורך הצעדים עלולות להוביל לסטייה הולכת וגדלה מהמטרה המקורית',
+      'הסוכן תמיד מסיים את המשימה מהר מדי',
+      'אין דרך לתת לסוכן יותר מכלי אחד',
+      'המודל שוכח את השפה שבה הוא מדבר',
+    ],
+    correctAnswer: 'שגיאות מצטברות (error accumulation) לאורך הצעדים עלולות להוביל לסטייה הולכת וגדלה מהמטרה המקורית',
+  },
+  {
+    id: 'q19', topic: 'Agentic AI',
+    question: 'מהו תפקידם של Function Calling / Tool Use במודלי שפה?',
+    options: [
+      'לאפשר למודל לבחור ולהפעיל פונקציות חיצוניות מוגדרות מראש (כגון חיפוש, חישוב, קריאה ל-API) כחלק מתהליך הפתרון',
+      'להחליף את שכבת ה-Embedding של המודל',
+      'לצמצם את גודל המודל על ידי מחיקת שכבות',
+      'לאמן את המודל מחדש בכל שיחה',
+    ],
+    correctAnswer: 'לאפשר למודל לבחור ולהפעיל פונקציות חיצוניות מוגדרות מראש (כגון חיפוש, חישוב, קריאה ל-API) כחלק מתהליך הפתרון',
+  },
+  {
+    id: 'q20', topic: 'Agentic AI',
+    question: "מהי הסכנה המרכזית ב'הרעלת הקשר' (context poisoning) בסוכן עם זיכרון מתמשך?",
+    options: [
+      'מידע שגוי שנכנס לזיכרון הסוכן עלול להשפיע על כל ההחלטות העתידיות שמסתמכות על אותו הקשר',
+      'הסוכן מפסיק לעבוד לחלוטין ברגע שיש טעות אחת',
+      'זיכרון הסוכן מתאפס אוטומטית כל דקה',
+      'המודל מתחיל לדבר בשפה אחרת',
+    ],
+    correctAnswer: 'מידע שגוי שנכנס לזיכרון הסוכן עלול להשפיע על כל ההחלטות העתידיות שמסתמכות על אותו הקשר',
+  },
+  {
+    id: 'q21', topic: 'Big-O',
+    question: 'מהי סיבוכיות הזמן הגרועה ביותר (worst case) של אלגוריתם Quicksort?',
+    options: ['O(n^2)', 'O(n log n)', 'O(n)', 'O(log n)'],
+    correctAnswer: 'O(n^2)',
+  },
+  {
+    id: 'q22', topic: 'Big-O',
+    question: "איזו מהסיבוכיות הבאות נחשבת 'פולינומיאלית' (polynomial)?",
+    options: ['O(n^3)', 'O(2^n)', 'O(n!)', 'O(n^n)'],
+    correctAnswer: 'O(n^3)',
+  },
+  {
+    id: 'q23', topic: 'Big-O',
+    question: 'מהי סיבוכיות הזמן של הכפלת שתי מטריצות בגודל n×n בשיטה הנאיבית?',
+    options: ['O(n^3)', 'O(n^2)', 'O(n log n)', 'O(n)'],
+    correctAnswer: 'O(n^3)',
+  },
+  {
+    id: 'q24', topic: 'Big-O',
+    question: 'מדוע בניתוח Big-O נהוג להתעלם ממקדמים קבועים, כמו לכתוב O(n) במקום O(2n+5)?',
+    options: [
+      'כי Big-O מתאר קצב גדילה אסימפטוטי עבור קלט גדול, ולא את הערך המדויק של מספר הפעולות',
+      'כי מקדמים קבועים תמיד שווים ל-1 בפועל',
+      'כי המחשב מתעלם מהם בזמן ריצה',
+      'כי זה נכון רק לאלגוריתמים רקורסיביים',
+    ],
+    correctAnswer: 'כי Big-O מתאר קצב גדילה אסימפטוטי עבור קלט גדול, ולא את הערך המדויק של מספר הפעולות',
+  },
+  {
+    id: 'q25', topic: 'LoRA',
+    question: "מהו הפרמטר 'rank' (r) ב-LoRA קובע?",
+    options: [
+      'את הממד של מטריצות הדירוג-הנמוך, ולכן את כמות הפרמטרים הניתנים לאימון ואת כושר הביטוי של ההתאמה',
+      'את מספר השכבות במודל הבסיסי',
+      'את קצב הלמידה (learning rate) של האימון',
+      'את גודל אוצר המילים של המודל',
+    ],
+    correctAnswer: 'את הממד של מטריצות הדירוג-הנמוך, ולכן את כמות הפרמטרים הניתנים לאימון ואת כושר הביטוי של ההתאמה',
+  },
+  {
+    id: 'q26', topic: 'LoRA',
+    question: 'מהו QLoRA?',
+    options: [
+      'שילוב של כימות (quantization) המודל הבסיסי ל-4 סיביות עם אימון LoRA, המאפשר כיוונון מודלים ענקיים על GPU יחיד',
+      'גרסה מהירה יותר של LoRA שמדלגת על שכבת ה-Attention',
+      'שיטה להריץ כמה מודלי LoRA שונים בו-זמנית על אותו קלט',
+      'טכניקה להמרת מודל LoRA לפורמט ONNX',
+    ],
+    correctAnswer: 'שילוב של כימות (quantization) המודל הבסיסי ל-4 סיביות עם אימון LoRA, המאפשר כיוונון מודלים ענקיים על GPU יחיד',
+  },
+  {
+    id: 'q27', topic: 'LoRA',
+    question: 'מדוע ניתן "למזג" (merge) משקלי LoRA בחזרה למודל הבסיסי לאחר האימון?',
+    options: [
+      'כי LoRA מוסיפה עדכון ליניארי (ΔW=BA) שניתן לחבר ישירות למשקלים המקוריים W, ללא שינוי בארכיטקטורה או בזמן ההסקה',
+      'כי המשקלים המקוריים נמחקים בזמן האימון',
+      'כי חובה למזג לפני שניתן להשתמש במודל בכלל',
+      'כי המיזוג מגדיל את מספר הפרמטרים הכולל של המודל',
+    ],
+    correctAnswer: 'כי LoRA מוסיפה עדכון ליניארי (ΔW=BA) שניתן לחבר ישירות למשקלים המקוריים W, ללא שינוי בארכיטקטורה או בזמן ההסקה',
+  },
+  {
+    id: 'q28', topic: 'LoRA',
+    question: 'מהו החיסרון המרכזי של Full Fine-Tuning לעומת LoRA במודלים גדולים?',
+    options: [
+      'דורש עדכון ואחסון של כל משקלי המודל, מה שצורך פי כמה יותר זיכרון וזמן חישוב',
+      'הוא תמיד פחות מדויק מ-LoRA',
+      'אי אפשר להשתמש בו כלל על GPU',
+      'הוא דורש יותר נתוני אימון מ-LoRA באופן מובנה',
+    ],
+    correctAnswer: 'דורש עדכון ואחסון של כל משקלי המודל, מה שצורך פי כמה יותר זיכרון וזמן חישוב',
+  },
+  {
+    id: 'q29', topic: 'RAG',
+    question: 'מהו chunk (קטע) במערכת RAG טיפוסית?',
+    options: [
+      'יחידת טקסט קטנה וממוקדת ממסמך מקור, שעבורה מחושב embedding ואשר נשלפת בנפרד לפי רלוונטיות',
+      'מסמך שלם שנשלף כמות שהוא בכל שאילתה',
+      'שכבה ברשת הנוירונים של מודל ה-Retrieval',
+      'קובץ קונפיגורציה שמגדיר את גודל המודל',
+    ],
+    correctAnswer: 'יחידת טקסט קטנה וממוקדת ממסמך מקור, שעבורה מחושב embedding ואשר נשלפת בנפרד לפי רלוונטיות',
+  },
+  {
+    id: 'q30', topic: 'RAG',
+    question: 'מדוע RAG עוזר להפחית הזיות (hallucinations) במודלי שפה?',
+    options: [
+      'כי המודל מקבל מידע עדכני ומבוסס-מקור כהקשר, במקום להסתמך רק על מה ש"שינן" בזמן האימון',
+      'כי RAG מבטל לחלוטין את יכולת המודל לייצר טקסט חופשי',
+      'כי RAG מגדיל את גודל המודל ומשפר בכך את הדיוק',
+      'כי RAG מריץ את המודל פעמיים ובוחר בתשובה הקצרה יותר',
+    ],
+    correctAnswer: 'כי המודל מקבל מידע עדכני ומבוסס-מקור כהקשר, במקום להסתמך רק על מה ש"שינן" בזמן האימון',
+  },
+  {
+    id: 'q31', topic: 'RAG',
+    question: 'מהו re-ranking בפייפליין של RAG?',
+    options: [
+      'שלב נוסף שבו מודל ייעודי מדרג מחדש את המסמכים שנשלפו כדי לשפר את הרלוונטיות לפני שהם מוזנים למודל השפה',
+      'תהליך שממיין את פלט המודל הסופי לפי אורך המשפט',
+      'שכבה שמאמנת מחדש את ה-embeddings בכל שאילתה',
+      'שיטה למחוק כפילויות ממסד הנתונים הווקטורי',
+    ],
+    correctAnswer: 'שלב נוסף שבו מודל ייעודי מדרג מחדש את המסמכים שנשלפו כדי לשפר את הרלוונטיות לפני שהם מוזנים למודל השפה',
+  },
+  {
+    id: 'q32', topic: 'RAG',
+    question: 'מהו החיסרון המרכזי של RAG לעומת כיוונון (fine-tuning) על ידע חדש?',
+    options: [
+      'RAG לא משנה את "הבנת" המודל את התחום, אלא רק מספק הקשר חיצוני - איכות התשובה תלויה מאוד באיכות השליפה',
+      'RAG תמיד יקר יותר מאימון מודל מהתחלה',
+      'RAG לא יכול לעבוד עם מודלים גדולים מ-1B פרמטרים',
+      'RAG דורש לאמן מחדש את כל המודל בכל פעם שמוסיפים מסמך',
+    ],
+    correctAnswer: 'RAG לא משנה את "הבנת" המודל את התחום, אלא רק מספק הקשר חיצוני - איכות התשובה תלויה מאוד באיכות השליפה',
+  },
+  {
+    id: 'q33', topic: 'Space Complexity',
+    question: 'מהי סיבוכיות המקום הנוספת (extra space) של אלגוריתם Merge Sort הסטנדרטי?',
+    options: ['O(n)', 'O(1)', 'O(log n)', 'O(n^2)'],
+    correctAnswer: 'O(n)',
+  },
+  {
+    id: 'q34', topic: 'Space Complexity',
+    question: 'מהי סיבוכיות המקום של חיפוש DFS רקורסיבי בעץ בעומק h?',
+    options: ['O(h)', 'O(1)', 'O(n)', 'O(n^2)'],
+    correctAnswer: 'O(h)',
+  },
+  {
+    id: 'q35', topic: 'Space Complexity',
+    question: 'מהו ההבדל בין סיבוכיות זמן לסיבוכיות מקום?',
+    options: [
+      'סיבוכיות זמן מודדת את מספר הפעולות שהאלגוריתם מבצע, וסיבוכיות מקום מודדת את כמות הזיכרון הנוסף שהוא צורך',
+      'אין הבדל, אלו שני שמות לאותו מדד',
+      'סיבוכיות מקום נמדדת רק במעבדים חלשים',
+      'סיבוכיות זמן תמיד גבוהה יותר מסיבוכיות מקום',
+    ],
+    correctAnswer: 'סיבוכיות זמן מודדת את מספר הפעולות שהאלגוריתם מבצע, וסיבוכיות מקום מודדת את כמות הזיכרון הנוסף שהוא צורך',
+  },
+  {
+    id: 'q36', topic: 'Space Complexity',
+    question: 'מהי סיבוכיות המקום הנוספת של אלגוריתם מיון "במקום" (in-place) כמו Heapsort?',
+    options: ['O(1)', 'O(n)', 'O(log n)', 'O(n log n)'],
+    correctAnswer: 'O(1)',
+  },
+  {
+    id: 'q37', topic: 'Attention',
+    question: 'מהו Sliding Window Attention?',
+    options: [
+      'מנגנון בו כל טוקן מתייחס רק לחלון מוגבל של טוקנים סמוכים, במקום לכל הרצף, כדי לחסוך בחישוב ובזיכרון',
+      'שיטה להזיז את הפרומפט הלאה בכל צעד יצירה',
+      'טכניקה לאמן את המודל על חלונות זמן שונים',
+      'מנגנון שמונע מהמודל להתייחס לטוקן הראשון ברצף',
+    ],
+    correctAnswer: 'מנגנון בו כל טוקן מתייחס רק לחלון מוגבל של טוקנים סמוכים, במקום לכל הרצף, כדי לחסוך בחישוב ובזיכרון',
+  },
+  {
+    id: 'q38', topic: 'Attention',
+    question: 'מהי מטרתה של טכניקת FlashAttention?',
+    options: [
+      'לחשב אטנשן מדויק תוך ניצול יעיל יותר של זיכרון ה-GPU, מה שמאיץ משמעותית את החישוב ומפחית צריכת זיכרון',
+      'להחליף את חישוב האטנשן בקירוב סטטיסטי לא מדויק',
+      'לאמן את המודל מהר יותר על ידי הקטנת אוצר המילים',
+      'למחוק את שכבות האטנשן שאינן בשימוש',
+    ],
+    correctAnswer: 'לחשב אטנשן מדויק תוך ניצול יעיל יותר של זיכרון ה-GPU, מה שמאיץ משמעותית את החישוב ומפחית צריכת זיכרון',
+  },
+  {
+    id: 'q39', topic: 'Attention',
+    question: 'מהו תפקידם של Query, Key ו-Value במנגנון האטנשן?',
+    options: [
+      'ה-Query מייצג "מה מחפשים", ה-Key מייצג "מה כל טוקן מציע", וה-Value הוא המידע שמוחזר בפועל לפי מידת ההתאמה',
+      'שלושתם הם שמות שונים לאותה מטריצת משקלים',
+      'Query ו-Key משמשים רק באימון, ו-Value רק בהסקה',
+      'Value קובע את סדר הטוקנים ברצף',
+    ],
+    correctAnswer: 'ה-Query מייצג "מה מחפשים", ה-Key מייצג "מה כל טוקן מציע", וה-Value הוא המידע שמוחזר בפועל לפי מידת ההתאמה',
+  },
+  {
+    id: 'q40', topic: 'Attention',
+    question: 'מהי המטרה של Positional Encoding בטרנספורמר?',
+    options: [
+      'להזין למודל מידע על סדר הטוקנים ברצף, שכן מנגנון האטנשן עצמו אינו רגיש לסדר',
+      'להקטין את מספר הפרמטרים הכולל של המודל',
+      'למנוע מהמודל לגשת לטוקנים עתידיים בזמן אימון',
+      'להצפין את הקלט מטעמי אבטחה',
+    ],
+    correctAnswer: 'להזין למודל מידע על סדר הטוקנים ברצף, שכן מנגנון האטנשן עצמו אינו רגיש לסדר',
+  },
+  {
+    id: 'q41', topic: 'Data Structures',
+    question: 'מהי התכונה המרכזית של מבנה נתונים מסוג Stack (מחסנית)?',
+    options: [
+      'LIFO - האיבר האחרון שנכנס הוא הראשון שיוצא',
+      'FIFO - האיבר הראשון שנכנס הוא הראשון שיוצא',
+      'כל האיברים יוצאים בו-זמנית',
+      'הסדר תלוי בגודל האיבר',
+    ],
+    correctAnswer: 'LIFO - האיבר האחרון שנכנס הוא הראשון שיוצא',
+  },
+  {
+    id: 'q42', topic: 'Data Structures',
+    question: 'מהי התכונה המרכזית של מבנה נתונים מסוג Queue (תור)?',
+    options: [
+      'FIFO - האיבר הראשון שנכנס הוא הראשון שיוצא',
+      'LIFO - האיבר האחרון שנכנס הוא הראשון שיוצא',
+      'האיברים מסודרים לפי גודלם תמיד',
+      'ניתן להוציא רק את האיבר האמצעי',
+    ],
+    correctAnswer: 'FIFO - האיבר הראשון שנכנס הוא הראשון שיוצא',
+  },
+  {
+    id: 'q43', topic: 'Data Structures',
+    question: 'מהו היתרון המרכזי של Linked List על פני Array בהוספת איבר באמצע הרשימה?',
+    options: [
+      'אין צורך להזיז איברים קיימים בזיכרון - מספיק לעדכן מצביעים (pointers)',
+      'Linked List תמיד צורכת פחות זיכרון מ-Array',
+      'ניתן לגשת לכל איבר ב-Linked List ב-O(1)',
+      'Linked List תומכת רק במספרים שלמים',
+    ],
+    correctAnswer: 'אין צורך להזיז איברים קיימים בזיכרון - מספיק לעדכן מצביעים (pointers)',
+  },
+  {
+    id: 'q44', topic: 'Data Structures',
+    question: 'מהו Trie (עץ קידומות)?',
+    options: [
+      'מבנה נתונים עצי המאחסן מחרוזות כך שכל צומת מייצג תו, ומאפשר חיפוש וחיזוי קידומות (autocomplete) ביעילות',
+      'סוג של טבלת גיבוב מיוחדת לטקסט',
+      'מבנה נתונים לאחסון מספרים שלמים בלבד',
+      'אלגוריתם למיון מחרוזות',
+    ],
+    correctAnswer: 'מבנה נתונים עצי המאחסן מחרוזות כך שכל צומת מייצג תו, ומאפשר חיפוש וחיזוי קידומות (autocomplete) ביעילות',
+  },
+  {
+    id: 'q45', topic: 'Data Structures',
+    question: 'מתי כדאי להעדיף Heap על פני מערך ממוין לצורך שליפת המינימום שוב ושוב תוך כדי הכנסות חדשות?',
+    options: [
+      'Heap שומר על O(log n) גם להכנסה וגם לשליפת הקיצון, בעוד מערך ממוין דורש O(n) להכנסה כדי לשמר את הסדר',
+      'מערך ממוין תמיד מהיר יותר מ-Heap בכל תרחיש',
+      'Heap לא תומך בהכנסת איברים חדשים כלל',
+      'אין הבדל בין השניים מבחינת סיבוכיות',
+    ],
+    correctAnswer: 'Heap שומר על O(log n) גם להכנסה וגם לשליפת הקיצון, בעוד מערך ממוין דורש O(n) להכנסה כדי לשמר את הסדר',
+  },
+  {
+    id: 'q46', topic: 'Sorting',
+    question: 'איזה מהאלגוריתמים הבאים הוא "יציב" (stable) מטבעו, כלומר שומר על הסדר היחסי של איברים שווים?',
+    options: ['Merge Sort', 'Quicksort', 'Heapsort', 'Selection Sort'],
+    correctAnswer: 'Merge Sort',
+  },
+  {
+    id: 'q47', topic: 'Sorting',
+    question: 'מהי סיבוכיות הזמן הטובה ביותר האפשרית למיון מבוסס-השוואות (comparison-based sort) במקרה הכללי?',
+    options: ['O(n log n)', 'O(n)', 'O(log n)', 'O(1)'],
+    correctAnswer: 'O(n log n)',
+  },
+  {
+    id: 'q48', topic: 'Sorting',
+    question: 'מתי משתלם להשתמש ב-Counting Sort במקום מיון מבוסס-השוואות?',
+    options: [
+      'כאשר טווח הערכים (k) קטן יחסית לגודל הקלט (n), כך שניתן להשיג סיבוכיות ליניארית O(n+k)',
+      'כאשר הקלט מכיל רק מחרוזות ולא מספרים',
+      'כאשר יש צורך למיין לפי מספר קריטריונים בו-זמנית',
+      'כאשר הזיכרון הפנוי מוגבל מאוד',
+    ],
+    correctAnswer: 'כאשר טווח הערכים (k) קטן יחסית לגודל הקלט (n), כך שניתן להשיג סיבוכיות ליניארית O(n+k)',
+  },
+  {
+    id: 'q49', topic: 'Sorting',
+    question: 'מהו העיקרון מאחורי אלגוריתם Quicksort?',
+    options: [
+      'בחירת איבר ציר (pivot), חלוקת המערך לאיברים קטנים/גדולים ממנו, ומיון רקורסיבי של כל חלק',
+      'מיזוג זוגות של איברים סמוכים שוב ושוב עד שהמערך ממוין',
+      'בניית ערימה (heap) והוצאת האיבר המקסימלי שוב ושוב',
+      'ספירת מספר המופעים של כל ערך והרכבת המערך לפי הספירה',
+    ],
+    correctAnswer: 'בחירת איבר ציר (pivot), חלוקת המערך לאיברים קטנים/גדולים ממנו, ומיון רקורסיבי של כל חלק',
+  },
+  {
+    id: 'q50', topic: 'Sorting',
+    question: 'למה Bubble Sort נחשב לא יעיל למערכים גדולים?',
+    options: [
+      'סיבוכיות הזמן שלו היא O(n^2) גם במקרה הממוצע, בגלל החלפות חוזרות של איברים סמוכים',
+      'הוא לא יכול למיין מספרים שליליים',
+      'הוא דורש זיכרון נוסף בגודל O(n^2)',
+      'הוא לא יציב (unstable)',
+    ],
+    correctAnswer: 'סיבוכיות הזמן שלו היא O(n^2) גם במקרה הממוצע, בגלל החלפות חוזרות של איברים סמוכים',
+  },
+  {
+    id: 'q51', topic: 'Databases',
+    question: "מהי התכונה 'Atomicity' מתוך עקרונות ACID?",
+    options: [
+      'טרנזקציה מתבצעת במלואה או לא מתבצעת כלל - אין מצב ביניים חלקי',
+      'כל הנתונים חייבים להיות זהים בכל רגע נתון בכל העותקים',
+      'כל טרנזקציה חייבת להסתיים תוך פחות משנייה',
+      'המשתמש חייב לאשר כל שינוי בנתונים ידנית',
+    ],
+    correctAnswer: 'טרנזקציה מתבצעת במלואה או לא מתבצעת כלל - אין מצב ביניים חלקי',
+  },
+  {
+    id: 'q52', topic: 'Databases',
+    question: 'מתי כדאי להעדיף מסד נתונים NoSQL מסוג מסמכים (Document DB) על פני רלציוני?',
+    options: [
+      'כאשר הסכימה משתנה בתדירות גבוהה או שהנתונים מתאימים למבנה מסמך היררכי, ולא נדרשות טרנזקציות מורכבות בין טבלאות',
+      'כאשר נדרשת תמיכה מלאה ב-JOIN מורכבים בין עשרות טבלאות',
+      'כאשר יש צורך בעקביות חזקה (strong consistency) בכל מחיר',
+      'כאשר כל הנתונים הם מספרים שלמים בלבד',
+    ],
+    correctAnswer: 'כאשר הסכימה משתנה בתדירות גבוהה או שהנתונים מתאימים למבנה מסמך היררכי, ולא נדרשות טרנזקציות מורכבות בין טבלאות',
+  },
+  {
+    id: 'q53', topic: 'Databases',
+    question: 'מהו אינדקס (Index) במסד נתונים, ומדוע הוא מאיץ שאילתות?',
+    options: [
+      'מבנה נתונים נוסף (בדרך כלל עץ מאוזן) שממפה ערכי עמודה למיקום השורות, ומאפשר חיפוש מהיר בלי לסרוק את כל הטבלה',
+      'עותק מלא של הטבלה שנשמר לגיבוי בלבד',
+      'רכיב שמצפין את הנתונים הרגישים בטבלה',
+      'תהליך שמוחק שורות כפולות אוטומטית',
+    ],
+    correctAnswer: 'מבנה נתונים נוסף (בדרך כלל עץ מאוזן) שממפה ערכי עמודה למיקום השורות, ומאפשר חיפוש מהיר בלי לסרוק את כל הטבלה',
+  },
+  {
+    id: 'q54', topic: 'Databases',
+    question: 'מהי הבעיה שפתרון Sharding נועד לפתור?',
+    options: [
+      'פיצול מסד נתונים גדול למספר מכונות (shards) כדי להתמודד עם נפח נתונים או עומס שחורג מיכולת מכונה בודדת',
+      'הצפנת הנתונים בזמן מנוחה (at rest)',
+      'מניעת כפילות נתונים בין טבלאות',
+      'שיפור קריאות הקוד של שאילתות SQL',
+    ],
+    correctAnswer: 'פיצול מסד נתונים גדול למספר מכונות (shards) כדי להתמודד עם נפח נתונים או עומס שחורג מיכולת מכונה בודדת',
+  },
+  {
+    id: 'q55', topic: 'Databases',
+    question: 'מהו ההבדל המרכזי בין Replication ל-Sharding?',
+    options: [
+      'Replication משכפל את אותם הנתונים למספר מכונות לצורך זמינות וקריאה מהירה, בעוד Sharding מפצל נתונים שונים בין מכונות שונות לצורך קנה מידה',
+      'שני המונחים מתארים בדיוק אותו מנגנון',
+      'Sharding משמש רק לגיבויים, ו-Replication רק לביצועים',
+      'Replication אפשרי רק במסדי נתונים רלציוניים',
+    ],
+    correctAnswer: 'Replication משכפל את אותם הנתונים למספר מכונות לצורך זמינות וקריאה מהירה, בעוד Sharding מפצל נתונים שונים בין מכונות שונות לצורך קנה מידה',
+  },
+  {
+    id: 'q56', topic: 'Caching',
+    question: 'מהי מדיניות הפינוי LRU (Least Recently Used) במטמון?',
+    options: [
+      'מפנה מהמטמון את הפריט שלא נעשה בו שימוש הכי הרבה זמן, בהנחה שסביר שלא ישמש שוב בקרוב',
+      'מפנה תמיד את הפריט הגדול ביותר בגודלו',
+      'מפנה פריטים לפי סדר אקראי',
+      'מפנה את כל המטמון ברגע שהוא מתמלא ב-50%',
+    ],
+    correctAnswer: 'מפנה מהמטמון את הפריט שלא נעשה בו שימוש הכי הרבה זמן, בהנחה שסביר שלא ישמש שוב בקרוב',
+  },
+  {
+    id: 'q57', topic: 'Caching',
+    question: "מהי הבעיה של 'Cache Stampede'?",
+    options: [
+      'כשמטמון פג בו-זמנית עבור מפתח פופולרי, בקשות רבות מגיעות במקביל למקור הנתונים ועלולות להעמיס עליו יתר על המידה',
+      'כשיש יותר מדי מפתחות שונים במטמון בו-זמנית',
+      'כשהמטמון מחזיר תמיד את אותה תשובה לכל השאילתות',
+      'כשלקוח מנסה לקרוא ולכתוב לאותו מפתח בו-זמנית',
+    ],
+    correctAnswer: 'כשמטמון פג בו-זמנית עבור מפתח פופולרי, בקשות רבות מגיעות במקביל למקור הנתונים ועלולות להעמיס עליו יתר על המידה',
+  },
+  {
+    id: 'q58', topic: 'Caching',
+    question: 'מהו Write-Through Cache?',
+    options: [
+      'מדיניות שבה כל כתיבה נכתבת גם למטמון וגם למקור הנתונים בו-זמנית, מה שמבטיח עקביות במחיר Latency גבוה יותר בכתיבה',
+      'מדיניות שבה כותבים רק למטמון ולעולם לא למקור הנתונים',
+      'מדיניות שמוחקת את המטמון כולו בכל כתיבה',
+      'מדיניות שמאפשרת כתיבה רק פעם ביום',
+    ],
+    correctAnswer: 'מדיניות שבה כל כתיבה נכתבת גם למטמון וגם למקור הנתונים בו-זמנית, מה שמבטיח עקביות במחיר Latency גבוה יותר בכתיבה',
+  },
+  {
+    id: 'q59', topic: 'Caching',
+    question: 'מהו ההבדל בין Cache Hit ל-Cache Miss?',
+    options: [
+      'Cache Hit הוא כשהמידע המבוקש נמצא במטמון, ו-Cache Miss הוא כשצריך לפנות למקור המקורי כי המידע לא נמצא',
+      'Cache Hit קורה רק בכתיבה, ו-Cache Miss רק בקריאה',
+      'שני המונחים מתארים את אותו מצב בדיוק',
+      'Cache Miss קורה רק כשהמטמון מלא לגמרי',
+    ],
+    correctAnswer: 'Cache Hit הוא כשהמידע המבוקש נמצא במטמון, ו-Cache Miss הוא כשצריך לפנות למקור המקורי כי המידע לא נמצא',
+  },
+  {
+    id: 'q60', topic: 'Caching',
+    question: 'מתי שימושי להשתמש ב-CDN (Content Delivery Network)?',
+    options: [
+      'כאשר רוצים להגיש תוכן סטטי (תמונות, קבצים) למשתמשים גלובליים במהירות, על ידי שמירת עותקים קרובים גיאוגרפית אליהם',
+      'כאשר רוצים להצפין תעבורה בין שני שרתי בסיס נתונים',
+      'כאשר צריך להריץ קוד צד-שרת דינמי בלבד',
+      'כאשר רוצים למנוע לחלוטין שימוש בזיכרון מטמון',
+    ],
+    correctAnswer: 'כאשר רוצים להגיש תוכן סטטי (תמונות, קבצים) למשתמשים גלובליים במהירות, על ידי שמירת עותקים קרובים גיאוגרפית אליהם',
+  },
+  {
+    id: 'q61', topic: 'Distributed Systems',
+    question: 'מהו משפט CAP?',
+    options: [
+      'במערכת מבוזרת עם חלוקת רשת (Partition), אי אפשר להבטיח בו-זמנית גם Consistency וגם Availability מלאים',
+      'כל מערכת מבוזרת חייבת לוותר על אבטחה לטובת ביצועים',
+      'מערכת מבוזרת חייבת לרוץ על לפחות 3 מכונות',
+      'עקביות וזמינות תמיד ניתנות להשגה יחד ללא פשרה',
+    ],
+    correctAnswer: 'במערכת מבוזרת עם חלוקת רשת (Partition), אי אפשר להבטיח בו-זמנית גם Consistency וגם Availability מלאים',
+  },
+  {
+    id: 'q62', topic: 'Distributed Systems',
+    question: "מהי המשמעות של 'Eventual Consistency'?",
+    options: [
+      'לאחר זמן מה ללא עדכונים חדשים, כל העותקים במערכת יתכנסו לאותו ערך, אך לא מובטחת עקביות מיידית',
+      'המערכת עקבית תמיד ומיידית, ללא יוצא מן הכלל',
+      'הנתונים נמחקים אוטומטית אחרי זמן קצוב',
+      'רק שרת אחד יכול לעדכן נתונים בכל זמן נתון',
+    ],
+    correctAnswer: 'לאחר זמן מה ללא עדכונים חדשים, כל העותקים במערכת יתכנסו לאותו ערך, אך לא מובטחת עקביות מיידית',
+  },
+  {
+    id: 'q63', topic: 'Distributed Systems',
+    question: 'מהו תפקידו של Load Balancer במערכת מבוזרת?',
+    options: [
+      'לחלק בקשות נכנסות בין מספר שרתים כדי למנוע עומס יתר על שרת בודד ולשפר זמינות',
+      'להצפין את כל התעבורה בין שרתים',
+      'לאחסן עותק גיבוי של מסד הנתונים',
+      'להריץ בדיקות אבטחה על כל בקשה נכנסת',
+    ],
+    correctAnswer: 'לחלק בקשות נכנסות בין מספר שרתים כדי למנוע עומס יתר על שרת בודד ולשפר זמינות',
+  },
+  {
+    id: 'q64', topic: 'Distributed Systems',
+    question: 'מהי הבעיה שפותר Circuit Breaker Pattern?',
+    options: [
+      'מונע כשל מדורג (cascading failure) על ידי "ניתוק" זמני של קריאות לשירות שכושל שוב ושוב, עד שהוא מתאושש',
+      'מבטיח שכל בקשה תקבל תשובה תוך פחות ממילישנייה',
+      'מצפין את התקשורת בין מיקרו-שירותים',
+      'מחליף אוטומטית שרת שנפל בשרת גיבוי זהה',
+    ],
+    correctAnswer: 'מונע כשל מדורג (cascading failure) על ידי "ניתוק" זמני של קריאות לשירות שכושל שוב ושוב, עד שהוא מתאושש',
+  },
+  {
+    id: 'q65', topic: 'Distributed Systems',
+    question: 'מהי המשמעות של Idempotency בקריאות API, ולמה היא חשובה במערכות מבוזרות?',
+    options: [
+      'פעולה שביצוע חוזר שלה נותן תוצאה זהה לביצוע יחיד - חשוב כדי לאפשר ניסיונות חוזרים (retries) בטוחים במקרה של תקלת רשת',
+      'פעולה שאסור לבצע יותר מפעם אחת בשום מקרה',
+      'פעולה שמתבצעת רק על שרת אחד ספציפי',
+      'פעולה שמחזירה תמיד קוד שגיאה 500',
+    ],
+    correctAnswer: 'פעולה שביצוע חוזר שלה נותן תוצאה זהה לביצוע יחיד - חשוב כדי לאפשר ניסיונות חוזרים (retries) בטוחים במקרה של תקלת רשת',
+  },
+  {
+    id: 'q66', topic: 'Concurrency',
+    question: 'מהו Race Condition?',
+    options: [
+      'מצב בו התוצאה של קוד תלויה בתזמון היחסי של מספר תהליכים/threads שרצים במקביל וניגשים למשאב משותף',
+      'מצב בו תהליך אחד רץ מהר יותר מכל השאר תמיד',
+      'שיטת תזמון שמעדיפה תהליכים קצרים על ארוכים',
+      'באג שגורם לתהליך להיתקע לצמיתות',
+    ],
+    correctAnswer: 'מצב בו התוצאה של קוד תלויה בתזמון היחסי של מספר תהליכים/threads שרצים במקביל וניגשים למשאב משותף',
+  },
+  {
+    id: 'q67', topic: 'Concurrency',
+    question: 'מהו Deadlock?',
+    options: [
+      'מצב בו שני תהליכים או יותר נעולים זה על זה, כל אחד ממתין למשאב שמוחזק על ידי האחר, ואף אחד לא יכול להתקדם',
+      'מצב בו תהליך אחד צורך את כל זיכרון המערכת',
+      'מצב בו תהליך מסתיים מוקדם מדי בגלל שגיאה',
+      'שיטת סנכרון שמבטלת את הצורך במנעולים',
+    ],
+    correctAnswer: 'מצב בו שני תהליכים או יותר נעולים זה על זה, כל אחד ממתין למשאב שמוחזק על ידי האחר, ואף אחד לא יכול להתקדם',
+  },
+  {
+    id: 'q68', topic: 'Concurrency',
+    question: 'מהי מטרתו של Mutex (מנעול הדדי)?',
+    options: [
+      'להבטיח שרק thread אחד בכל רגע נתון יכול לגשת לקטע קוד קריטי או משאב משותף',
+      'להריץ מספר threads בו-זמנית על אותו משאב',
+      'להאיץ את ביצוע הקוד על ידי דילוג על בדיקות',
+      'לתזמן threads לפי סדר ההגעה בלבד',
+    ],
+    correctAnswer: 'להבטיח שרק thread אחד בכל רגע נתון יכול לגשת לקטע קוד קריטי או משאב משותף',
+  },
+  {
+    id: 'q69', topic: 'Concurrency',
+    question: 'מה ההבדל בין Concurrency ל-Parallelism?',
+    options: [
+      'Concurrency היא ניהול מספר משימות שמתקדמות יחד לאורך זמן, בעוד Parallelism הוא ביצוע ממשי של מספר משימות במקביל, בדרך כלל על מספר ליבות',
+      'שני המונחים זהים לחלוטין ואין ביניהם הבדל',
+      'Parallelism אפשרי רק בשפת תכנות אחת ספציפית',
+      'Concurrency דורשת תמיד יותר ליבות מ-Parallelism',
+    ],
+    correctAnswer: 'Concurrency היא ניהול מספר משימות שמתקדמות יחד לאורך זמן, בעוד Parallelism הוא ביצוע ממשי של מספר משימות במקביל, בדרך כלל על מספר ליבות',
+  },
+  {
+    id: 'q70', topic: 'Concurrency',
+    question: 'מהי הבעיה שפותר Semaphore בעל ערך גדול מ-1?',
+    options: [
+      'מגביל את מספר ה-threads שיכולים לגשת בו-זמנית למשאב מוגבל (למשל pool של חיבורים), ולא רק thread אחד כמו ב-Mutex',
+      'מבטל לחלוטין את הצורך בסנכרון בין threads',
+      'מאפשר לתהליך אחד לרוץ על מספר מעבדים בו-זמנית',
+      'מוחק אוטומטית threads שנתקעו',
+    ],
+    correctAnswer: 'מגביל את מספר ה-threads שיכולים לגשת בו-זמנית למשאב מוגבל (למשל pool של חיבורים), ולא רק thread אחד כמו ב-Mutex',
+  },
+  {
+    id: 'q71', topic: 'Networking',
+    question: 'מהו ההבדל המרכזי בין TCP ל-UDP?',
+    options: [
+      'TCP מבטיח מסירה אמינה וסדורה של נתונים עם handshake ובקרת שגיאות, בעוד UDP שולח חבילות ללא ערבות למסירה או לסדר, במחיר latency נמוך יותר',
+      'UDP תמיד מהיר יותר כי הוא מבטיח מסירה כפולה',
+      'TCP משמש רק לדוא"ל, ו-UDP רק לגלישה באינטרנט',
+      'אין הבדל מעשי בין השניים כיום',
+    ],
+    correctAnswer: 'TCP מבטיח מסירה אמינה וסדורה של נתונים עם handshake ובקרת שגיאות, בעוד UDP שולח חבילות ללא ערבות למסירה או לסדר, במחיר latency נמוך יותר',
+  },
+  {
+    id: 'q72', topic: 'Networking',
+    question: 'מה משמעות קוד התגובה HTTP 429?',
+    options: [
+      'יותר מדי בקשות (Too Many Requests) - הלקוח חרג ממגבלת הקצב (rate limit) שהוגדרה על ידי השרת',
+      'השרת נתקל בשגיאה פנימית בלתי צפויה',
+      'הדף המבוקש לא נמצא בשרת',
+      'הבקשה הצליחה במלואה',
+    ],
+    correctAnswer: 'יותר מדי בקשות (Too Many Requests) - הלקוח חרג ממגבלת הקצב (rate limit) שהוגדרה על ידי השרת',
+  },
+  {
+    id: 'q73', topic: 'Networking',
+    question: 'מהו תפקידו של DNS?',
+    options: [
+      'לתרגם שמות domain קריאים לבני אדם לכתובות IP שהמחשבים משתמשים בהן לתקשורת ברשת',
+      'להצפין תעבורה בין דפדפן לשרת',
+      'לדחוס קבצים לפני שליחתם ברשת',
+      'לנהל הרשאות משתמשים באתר',
+    ],
+    correctAnswer: 'לתרגם שמות domain קריאים לבני אדם לכתובות IP שהמחשבים משתמשים בהן לתקשורת ברשת',
+  },
+  {
+    id: 'q74', topic: 'Networking',
+    question: 'מהי המטרה של TLS/SSL בתקשורת רשת?',
+    options: [
+      'להצפין את התקשורת בין לקוח לשרת ולוודא את זהות הצד השני, כדי למנוע האזנה או זיוף',
+      'להאיץ את מהירות התעבורה על ידי דחיסת נתונים',
+      'לתרגם כתובות IP לשמות domain',
+      'לנהל את מאזן העומסים בין שרתים',
+    ],
+    correctAnswer: 'להצפין את התקשורת בין לקוח לשרת ולוודא את זהות הצד השני, כדי למנוע האזנה או זיוף',
+  },
+  {
+    id: 'q75', topic: 'Networking',
+    question: 'מהו WebSocket, ובמה הוא שונה מ-HTTP רגיל?',
+    options: [
+      'פרוטוקול שמאפשר ערוץ תקשורת דו-כיווני מתמשך בין לקוח לשרת, בניגוד ל-HTTP שהוא לרוב מבוסס בקשה-תגובה בודדת',
+      'גרסה מוצפנת יותר של HTTP בלבד',
+      'פרוטוקול שמחליף לחלוטין את TCP',
+      'שיטה לשלוח קבצים גדולים בלבד ברשת',
+    ],
+    correctAnswer: 'פרוטוקול שמאפשר ערוץ תקשורת דו-כיווני מתמשך בין לקוח לשרת, בניגוד ל-HTTP שהוא לרוב מבוסס בקשה-תגובה בודדת',
+  },
+  {
+    id: 'q76', topic: 'Security',
+    question: 'מהי התקפת SQL Injection?',
+    options: [
+      'הזרקת קוד SQL זדוני דרך קלט משתמש שלא עבר סניטציה, כדי לגרום למסד הנתונים להריץ פקודות לא מכוונות',
+      'התקפה שמנתקת את החיבור לאינטרנט של השרת',
+      'ניסיון לנחש סיסמה על ידי ניסוי כל הצירופים האפשריים',
+      'שיבוש תעבורת רשת על ידי הצפת בקשות',
+    ],
+    correctAnswer: 'הזרקת קוד SQL זדוני דרך קלט משתמש שלא עבר סניטציה, כדי לגרום למסד הנתונים להריץ פקודות לא מכוונות',
+  },
+  {
+    id: 'q77', topic: 'Security',
+    question: 'מהי המטרה של Hashing סיסמאות לפני אחסון במסד נתונים?',
+    options: [
+      'לאחסן ערך חד-כיווני שאי אפשר לשחזר ממנו את הסיסמה המקורית בקלות, כך שגם אם מסד הנתונים דלף הסיסמאות לא נחשפות ישירות',
+      'לחסוך מקום אחסון על ידי קיצור הסיסמה',
+      'לאפשר למשתמש לשחזר את הסיסמה המקורית בקלות במקרה הצורך',
+      'להאיץ את תהליך ההתחברות למערכת',
+    ],
+    correctAnswer: 'לאחסן ערך חד-כיווני שאי אפשר לשחזר ממנו את הסיסמה המקורית בקלות, כך שגם אם מסד הנתונים דלף הסיסמאות לא נחשפות ישירות',
+  },
+  {
+    id: 'q78', topic: 'Security',
+    question: 'מהי המטרה של CORS (Cross-Origin Resource Sharing)?',
+    options: [
+      'לאפשר לשרת לקבוע במפורש אילו domains אחרים מורשים לבצע בקשות דפדפן אליו, כהגנה מפני שימוש זדוני חוצה-מקורות',
+      'להצפין את כל הבקשות שמגיעות מדומיין חיצוני',
+      'לחסום לחלוטין כל בקשה שמגיעה מדומיין אחר',
+      'לאפשר לאתר אחד לגשת לקבצי המערכת של אתר אחר',
+    ],
+    correctAnswer: 'לאפשר לשרת לקבוע במפורש אילו domains אחרים מורשים לבצע בקשות דפדפן אליו, כהגנה מפני שימוש זדוני חוצה-מקורות',
+  },
+  {
+    id: 'q79', topic: 'Security',
+    question: 'מהי התקפת XSS (Cross-Site Scripting)?',
+    options: [
+      'הזרקת קוד JavaScript זדוני לדף אינטרנט שמוצג למשתמשים אחרים, בדרך כלל דרך קלט שלא עבר סניטציה',
+      'ניסיון לפרוץ לשרת דרך יציאת (port) לא מאובטחת',
+      'התקפה שמצפינה קבצים ודורשת כופר לשחרורם',
+      'שיבוש ה-DNS כדי להפנות משתמשים לאתר מזויף',
+    ],
+    correctAnswer: 'הזרקת קוד JavaScript זדוני לדף אינטרנט שמוצג למשתמשים אחרים, בדרך כלל דרך קלט שלא עבר סניטציה',
+  },
+  {
+    id: 'q80', topic: 'Security',
+    question: "מהו העיקרון של 'Least Privilege' באבטחת מידע?",
+    options: [
+      'לתת לכל משתמש/רכיב רק את ההרשאות המינימליות הנדרשות לו לביצוע תפקידו, ולא יותר מכך',
+      'לתת לכל המשתמשים הרשאות מנהל (admin) כברירת מחדל',
+      'להעניק הרשאות זמניות שפגות תוך שנייה אחת',
+      'לאפשר גישה חופשית לכל המידע לכל עובד בארגון',
+    ],
+    correctAnswer: "לתת לכל משתמש/רכיב רק את ההרשאות המינימליות הנדרשות לו לביצוע תפקידו, ולא יותר מכך",
+  },
 ];
 
 const ARCHITECTURE_PAIRS = [
-  { id: 'a1', bottleneck: 'עומס קריאה גבוה על מסד הנתונים הראשי', component: 'Redis Cache' },
+  { id: 'a1', bottleneck: 'עומס קריאה חוזרת על מסד הנתונים הראשי', component: 'Redis Cache' },
   { id: 'a2', bottleneck: 'זרימת אירועים בזמן אמת בנפח עצום עם דרישת Latency נמוכה', component: 'Kafka' },
   { id: 'a3', bottleneck: 'כיוונון מודל ענק על GPU יחיד עם זיכרון מוגבל', component: 'LoRA' },
   { id: 'a4', bottleneck: 'חיפוש סמנטי מהיר על מיליוני embeddings', component: 'Vector DB' },
@@ -132,6 +1030,78 @@ const ARCHITECTURE_PAIRS = [
   { id: 'a6', bottleneck: 'כשל מדורג משירות downstream שנופל', component: 'Circuit Breaker' },
   { id: 'a7', bottleneck: 'זמן טעינה גבוה למשתמשים גלובליים בגלל נכסים סטטיים', component: 'CDN' },
   { id: 'a8', bottleneck: 'נקודת כשל יחידה בשרת החזית', component: 'Load Balancer' },
+  { id: 'a9', bottleneck: 'חיפוש טקסט חופשי מהיר במיליוני מסמכים', component: 'Elasticsearch' },
+  { id: 'a10', bottleneck: 'צורך בתור הודעות אמין בין שירותים א-סינכרוניים', component: 'RabbitMQ' },
+  { id: 'a11', bottleneck: "over-fetching של נתונים מ-REST API נוקשה", component: 'GraphQL' },
+  { id: 'a12', bottleneck: 'עומס קריאה גבוה שפוגע בביצועי כתיבה במסד הנתונים', component: 'Read Replica' },
+  { id: 'a13', bottleneck: 'נפח נתונים שחורג מיכולת האחסון של מכונה בודדת', component: 'Database Sharding' },
+  { id: 'a14', bottleneck: 'ניהול מבוזר של אימות והרשאות בין עשרות מיקרו-שירותים', component: 'API Gateway' },
+  { id: 'a15', bottleneck: 'צורך בעדכונים בזמן אמת ללקוח בלי polling מתמיד', component: 'WebSockets' },
+  { id: 'a16', bottleneck: 'שכפול קבצים זהים שתופס מקום אחסון מיותר', component: 'Content-Addressable Storage' },
+  { id: 'a17', bottleneck: 'בדיקה מהירה אם ערך בטוח לא קיים במאגר ענק', component: 'Bloom Filter' },
+  { id: 'a18', bottleneck: 'הוספת או הסרת שרתים מערבבת לגמרי מפתחות במטמון מבוזר', component: 'Consistent Hashing' },
+  { id: 'a19', bottleneck: 'הצפה של בקשות מלקוח בודד שפוגעת בכל שאר המשתמשים', component: 'Rate Limiter' },
+  { id: 'a20', bottleneck: 'כפילות בעיבוד תשלום עקב ניסיון חוזר (retry) של הלקוח', component: 'Idempotency Key' },
+  { id: 'a21', bottleneck: 'טרנזקציה מבוזרת שחוצה מספר מיקרו-שירותים שונים', component: 'Saga Pattern' },
+  { id: 'a22', bottleneck: 'צורך בשחזור מדויק של היסטוריית שינויים במערכת', component: 'Event Sourcing' },
+  { id: 'a23', bottleneck: 'עומס שונה מאוד בין קריאה לכתיבה באותה מערכת', component: 'CQRS' },
+  { id: 'a24', bottleneck: 'צורך להימנע מהשבתה בזמן פריסת גרסה חדשה', component: 'Blue-Green Deployment' },
+  { id: 'a25', bottleneck: 'סיכון בפריסת גרסה חדשה לכל המשתמשים בבת אחת', component: 'Canary Release' },
+  { id: 'a26', bottleneck: 'צורך להפעיל או לכבות פיצ׳ר בלי לפרוס קוד מחדש', component: 'Feature Flag' },
+  { id: 'a27', bottleneck: 'ניהול תעבורה ואבטחה עקבי בין עשרות מיקרו-שירותים', component: 'Service Mesh' },
+  { id: 'a28', bottleneck: 'מספר instances מנסים לעדכן משאב משותף בו-זמנית', component: 'Distributed Lock' },
+  { id: 'a29', bottleneck: 'סכנת איבוד נתונים במקרה של קריסת שרת מסד הנתונים', component: 'Write-Ahead Log' },
+  { id: 'a30', bottleneck: 'מודל גדול מדי להרצה במכשיר קצה עם משאבים מוגבלים', component: 'Quantization' },
+  { id: 'a31', bottleneck: 'צורך במודל קטן ומהיר שמחקה מודל ענק ואיטי', component: 'Knowledge Distillation' },
+  { id: 'a32', bottleneck: 'איכות פלט נמוכה מדי כשמפענחים טקסט greedy צעד-צעד', component: 'Beam Search' },
+  { id: 'a33', bottleneck: 'חיפוש דמיון איטי מדי במרחב embeddings ענק', component: 'Approximate Nearest Neighbor (ANN)' },
+  { id: 'a34', bottleneck: 'צורך במודל שפה שיבצע פעולות אמיתיות בעולם החיצוני', component: 'Function Calling' },
+  { id: 'a35', bottleneck: 'פלט לא בטוח או לא תקני ממודל שפה גנרטיבי', component: 'Guardrails / Output Validation' },
+  { id: 'a36', bottleneck: 'עלות וזמן תגובה גבוהים בגלל פרומפטים חוזרים וארוכים', component: 'Prompt Caching' },
+  { id: 'a37', bottleneck: 'מודל שמייצר עובדות שגויות על ידע עדכני שהוא לא מכיר', component: 'Retrieval-Augmented Generation' },
+  { id: 'a38', bottleneck: 'צורך ללכוד סוגי קשרים שונים בין טוקנים בו-זמנית', component: 'Multi-Head Attention' },
+  { id: 'a39', bottleneck: 'ניצול לא יעיל של GPU כשמגיעות בקשות הסקה בודדות', component: 'Batching' },
+  { id: 'a40', bottleneck: 'עומס צפוי מראש בשעות קבועות שדורש הכנה ולא רק תגובה', component: 'Predictive Autoscaling (Scheduled Scaling)' },
+  { id: 'a41', bottleneck: 'יצירת חיבור חדש למסד הנתונים בכל בקשה שמאטה את המערכת', component: 'Database Connection Pool' },
+  { id: 'a42', bottleneck: 'שאילתת אגרגציה כבדה שרצה שוב ושוב על אותם נתונים', component: 'Materialized View' },
+  { id: 'a43', bottleneck: 'JOIN יקר מדי בין טבלאות גדולות בזמן אמת', component: 'Denormalization' },
+  { id: 'a44', bottleneck: 'התנגשויות נדירות בעדכון בו-זמנית של אותה רשומה', component: 'Optimistic Locking' },
+  { id: 'a45', bottleneck: 'צורך להבטיח בלעדיות מוחלטת על משאב קריטי בזמן עדכון', component: 'Pessimistic Locking' },
+  { id: 'a46', bottleneck: 'הודעות שנכשלות שוב ושוב ותוקעות את התור כולו', component: 'Dead Letter Queue' },
+  { id: 'a47', bottleneck: 'צרכן איטי יותר מהיצרן שגורם לעומס יתר בתור ההודעות', component: 'Backpressure' },
+  { id: 'a48', bottleneck: 'צורך לשמור מצב session על אותו שרת ספציפי', component: 'Sticky Sessions' },
+  { id: 'a49', bottleneck: 'שרת שקרס אך עדיין מקבל תעבורה מה-Load Balancer', component: 'Health Check Endpoint' },
+  { id: 'a50', bottleneck: 'חוסר ודאות כיצד המערכת מתנהגת בזמן כשל אמיתי', component: 'Chaos Engineering' },
+  { id: 'a51', bottleneck: 'קושי לאתר את מקור התקלה בשרשרת מיקרו-שירותים ארוכה', component: 'Observability / Distributed Tracing' },
+  { id: 'a52', bottleneck: 'לוגים מפוזרים על עשרות שרתים שקשה לחפש בהם', component: 'Log Aggregation' },
+  { id: 'a53', bottleneck: 'חוסר עקביות בין features בזמן אימון ובזמן הסקה', component: 'Feature Store' },
+  { id: 'a54', bottleneck: 'צורך למדוד השפעת שינוי על התנהגות משתמשים אמיתית', component: 'A/B Testing Framework' },
+  { id: 'a55', bottleneck: 'איחסון נתונים גולמיים בכמויות עצומות ומגוון פורמטים', component: 'Data Lake' },
+  { id: 'a56', bottleneck: 'נתונים גולמיים ממקורות שונים שדורשים ניקוי ואיחוד', component: 'ETL Pipeline' },
+  { id: 'a57', bottleneck: 'איחסון יעיל של מיליארדי embeddings בזיכרון מוגבל', component: 'Vector Quantization for Embeddings' },
+  { id: 'a58', bottleneck: 'צורך לעקוב אילו גרסאות מודל בשימוש בפרודקשן', component: 'Model Versioning Registry' },
+  { id: 'a59', bottleneck: 'צורך לבדוק מודל חדש על תעבורה אמיתית בלי להשפיע על משתמשים', component: 'Shadow Deployment' },
+  { id: 'a60', bottleneck: 'הסקה איטית מדי במודלי שפה גדולים', component: 'Speculative Decoding' },
+  { id: 'a61', bottleneck: 'צורך בקיבולת מודל גדולה בלי לשלם מלוא עלות החישוב על כל טוקן', component: 'Mixture of Experts (MoE)' },
+  { id: 'a62', bottleneck: 'רצפים ארוכים מדי בגלל פיצול לא יעיל של טקסט לטוקנים', component: 'Tokenizer Optimization' },
+  { id: 'a63', bottleneck: 'חוסר בזיכרון GPU בזמן אימון רשת עמוקה', component: 'Gradient Checkpointing' },
+  { id: 'a64', bottleneck: 'אימון איטי מדי עקב שימוש בדיוק מספרי מיותר', component: 'Mixed Precision Training' },
+  { id: 'a65', bottleneck: 'אימון מודל על מערך נתונים עצום שלא נכנס למכונה אחת', component: 'Data Parallelism' },
+  { id: 'a66', bottleneck: 'מודל שגדול מדי להיכנס לזיכרון GPU יחיד', component: 'Model Parallelism' },
+  { id: 'a67', bottleneck: 'כפילות מיותרת של מצב האופטימייזר בין GPUs מרובים', component: 'Zero Redundancy Optimizer (ZeRO)' },
+  { id: 'a68', bottleneck: 'צורך להתאים אוטומטית את מספר מכונות ה-VM לעומס משתנה', component: 'Autoscaling Group' },
+  { id: 'a69', bottleneck: 'צורך לשרת משתמשים גלובליים עם Latency נמוך', component: 'Multi-Region Deployment' },
+  { id: 'a70', bottleneck: 'צורך במעבר אוטומטי לאתר גיבוי במקרה של תקלה אזורית', component: 'DNS Failover' },
+  { id: 'a71', bottleneck: 'איחסון כמויות עצומות של קבצים לא מובנים בעלות נמוכה', component: 'Object Storage (S3-like)' },
+  { id: 'a72', bottleneck: 'עלות גבוהה לאחסון נתונים ישנים שכמעט ולא נגישים', component: 'Cold Storage Tiering' },
+  { id: 'a73', bottleneck: 'צורך בשחזור מהיר של מסד נתונים לנקודת זמן מסוימת', component: 'Snapshot Backup' },
+  { id: 'a74', bottleneck: 'סיכון גניבת זהות מסיסמה חשופה בלבד', component: 'Multi-Factor Authentication' },
+  { id: 'a75', bottleneck: 'צורך לתת גישה מוגבלת בזמן לצד שלישי בלי לחשוף סיסמה', component: 'OAuth2 / Token-Based Auth' },
+  { id: 'a76', bottleneck: 'הגנה מפני התקפות נפוצות כמו SQL Injection ו-XSS', component: 'Web Application Firewall (WAF)' },
+  { id: 'a77', bottleneck: 'מפתחות API ואישורים רגישים המפוזרים בקוד המקור', component: 'Secrets Manager' },
+  { id: 'a78', bottleneck: 'צורך לוודא זהות הדדית בין שני שירותים פנימיים', component: 'mTLS (Mutual TLS)' },
+  { id: 'a79', bottleneck: 'סחף קונפיגורציה (config drift) בין שרתים שהוגדרו ידנית', component: 'Immutable Infrastructure' },
+  { id: 'a80', bottleneck: 'צורך בשחזור סביבה זהה ואמינה שוב ושוב מאפס', component: 'Infrastructure as Code' },
 ];
 
 const BEHAVIORAL_QUESTIONS = [
@@ -151,6 +1121,168 @@ const BEHAVIORAL_QUESTIONS = [
       { key: 'A', text: '"מעולם לא באמת נכשלתי בגדול, תמיד הצלחתי למצוא פתרון בזמן."' },
       { key: 'B', text: '"פעם דחפתי פיצ\'ר לפרודקשן בלי מספיק טסטים כי הרגשתי לחץ להוכיח את עצמי, וזה קרס. למדתי לעצור ולבקש עזרה כשמשהו לא מרגיש בטוח."' },
       { key: 'C', text: '"זיהיתי כשל בארכיטקטורה לפני שהגיע לפרודקשן, תיעדתי אותו ובניתי תהליך בדיקה שמנע הישנות."' },
+    ],
+  },
+  {
+    id: 'b3',
+    prompt: 'המראיין/ת: "למה אתה/את רוצה לעזוב את מקום העבודה הנוכחי?"',
+    options: [
+      { key: 'A', text: '"פשוט מחפש/ת אתגר חדש."' },
+      { key: 'B', text: '"הרגשתי שהמנהל שלי לא סמך עליי מספיק כדי לתת לי אחריות אמיתית, וזה שחק אותי לאורך זמן."' },
+      { key: 'C', text: '"אני מחפש/ת סביבה שבה אוכל להוביל פרויקטים גדולים יותר ולהתפתח בכיוון ארכיטקטוני."' },
+    ],
+  },
+  {
+    id: 'b4',
+    prompt: 'המראיין/ת: "איפה אתה/את רואה את עצמך בעוד חמש שנים?"',
+    options: [
+      { key: 'A', text: '"בתפקידך."' },
+      { key: 'B', text: '"האמת שאני לא תמיד יודע/ת בוודאות, ולפעמים זה מלחיץ אותי לא לדעת בדיוק לאן אני הולך/ת."' },
+      { key: 'C', text: '"בתפקיד טכני בכיר יותר, עם אחריות רחבה יותר על החלטות ארכיטקטורה."' },
+    ],
+  },
+  {
+    id: 'b5',
+    prompt: 'המראיין/ת: "ספר/י לי על קונפליקט עם עמית לעבודה."',
+    options: [
+      { key: 'A', text: '"אף פעם לא היה לי קונפליקט עם אף אחד."' },
+      { key: 'B', text: '"פעם התעצבנתי מאוד על עמית וזה יצא לי בטון לא הוגן בפגישה, ואחר כך התנצלתי."' },
+      { key: 'C', text: '"חלקנו דעה מקצועית שונה, אז קבענו פגישה ממוקדת והגענו לפתרון מוסכם מבוסס נתונים."' },
+    ],
+  },
+  {
+    id: 'b6',
+    prompt: 'המראיין/ת: "למה שנעסיק אותך ולא מועמד אחר?"',
+    options: [
+      { key: 'A', text: '"כי אני הכי טוב/ה בתחום."' },
+      { key: 'B', text: '"האמת שאני לא בטוח/ה שאני הכי טוב/ה, אבל אני עובד/ת קשה ולומד/ת מהר."' },
+      { key: 'C', text: '"בגלל השילוב הספציפי של ניסיון טכני וסקרנות שמתאים בול לאתגרים שתיארתם."' },
+    ],
+  },
+  {
+    id: 'b7',
+    prompt: 'המראיין/ת: "מה מרגיז אותך אצל מנהלים?"',
+    options: [
+      { key: 'A', text: '"כלום, אני תמיד מסתדר/ת עם כולם."' },
+      { key: 'B', text: '"לפעמים אני נעשה/ית תוקפני/ת כשמנהל לא מסביר את ה-\'למה\' מאחורי החלטה."' },
+      { key: 'C', text: '"חוסר שקיפות לגבי סדרי עדיפויות, כי זה מקשה עליי לתעדף נכון את העבודה שלי."' },
+    ],
+  },
+  {
+    id: 'b8',
+    prompt: 'המראיין/ת: "תאר/י מצב בו נכשלת בעמידה בלוח זמנים."',
+    options: [
+      { key: 'A', text: '"זה אף פעם לא קורה לי, אני תמיד עומד/ת בלוחות זמנים."' },
+      { key: 'B', text: '"פעם הערכתי משימה בחסר כי רציתי להרשים, ובסוף נאלצתי להתנצל ולבקש הארכה ברגע האחרון."' },
+      { key: 'C', text: '"זיהיתי מוקדם שהלו"ז בסיכון, עדכנתי את הצוות מיד והצענו יחד תוכנית חלופית."' },
+    ],
+  },
+  {
+    id: 'b9',
+    prompt: 'המראיין/ת: "איך אתה/את מתמודד/ת עם ביקורת?"',
+    options: [
+      { key: 'A', text: '"אני אף פעם לא נעלב/ת מביקורת, זה פשוט לא משפיע עליי."' },
+      { key: 'B', text: '"בהתחלה אני נוטה להתגונן פנימית, ולוקח לי כמה דקות לעכל את זה לפני שאני מגיב/ה בונה."' },
+      { key: 'C', text: '"אני מקשיב/ה, שואל/ת שאלות הבהרה, ומנסה למצוא את הפעולה הקונקרטית שנובעת מהביקורת."' },
+    ],
+  },
+  {
+    id: 'b10',
+    prompt: 'המראיין/ת: "ספר/י לי על פעם שלא הסכמת עם ההנהלה."',
+    options: [
+      { key: 'A', text: '"אני תמיד מסכים/ה עם ההנהלה, זה התפקיד שלי."' },
+      { key: 'B', text: '"התנגדתי בחריפות להחלטה מול כולם בפגישה, וזה לא התקבל טוב - למדתי לעשות את זה בפרטיות."' },
+      { key: 'C', text: '"העליתי את החששות שלי בפגישת אחד-על-אחד עם נתונים תומכים, וההחלטה הסופית עודכנה בהתאם."' },
+    ],
+  },
+  {
+    id: 'b11',
+    prompt: 'המראיין/ת: "מה הציפיות שלך משכר ותנאים?"',
+    options: [
+      { key: 'A', text: '"כמה שיותר, אני שווה את זה."' },
+      { key: 'B', text: '"האמת שקצת קשה לי לדבר על מספרים, אני לא אוהב/ת משא ומתן."' },
+      { key: 'C', text: '"טווח מבוסס שוק בהתאם לניסיון שלי, עם דגש על גמישות ותנאים נלווים."' },
+    ],
+  },
+  {
+    id: 'b12',
+    prompt: 'המראיין/ת: "איך אתה/את מתמודד/ת עם עומס עבודה גבוה?"',
+    options: [
+      { key: 'A', text: '"אני פשוט עובד/ת יותר שעות, זה לא בעיה בשבילי."' },
+      { key: 'B', text: '"לפעמים אני נלחץ/ת ומתקשה לתעדף, וזה גורם לי לעבוד על הכל בבת אחת בלי סדר."' },
+      { key: 'C', text: '"אני מתעדף/ת לפי דחיפות והשפעה, ומתקשר/ת מוקדם אם משהו לא ריאלי בלו"ז."' },
+    ],
+  },
+  {
+    id: 'b13',
+    prompt: 'המראיין/ת: "ספר/י לי על טעות מקצועית שעשית."',
+    options: [
+      { key: 'A', text: '"אני לא ממש עושה טעויות, אני מדויק/ת מאוד."' },
+      { key: 'B', text: '"מחקתי בטעות נתונים בפרודקשן כי לא הייתי מרוכז/ת, וזה גרם לבהלה גדולה בצוות."' },
+      { key: 'C', text: '"פרסתי שינוי בלי בדיקת רגרסיה מלאה, זיהיתי את זה מהר והוספתי תהליך בדיקה שמנע הישנות."' },
+    ],
+  },
+  {
+    id: 'b14',
+    prompt: 'המראיין/ת: "למה יש פער בקורות החיים שלך?"',
+    options: [
+      { key: 'A', text: '"זה לא ממש עניינכם."' },
+      { key: 'B', text: '"עברתי תקופה קשה מבחינה אישית ולקחתי הפסקה כדי להתאושש."' },
+      { key: 'C', text: '"ניצלתי את הזמן ללמידה ממוקדת של טכנולוגיות חדשות ולפרויקטים אישיים."' },
+    ],
+  },
+  {
+    id: 'b15',
+    prompt: 'המראיין/ת: "איך אתה/את מקבל/ת החלטות תחת אי-ודאות?"',
+    options: [
+      { key: 'A', text: '"תמיד יש לי תשובה ברורה, אני לא מתלבט/ת."' },
+      { key: 'B', text: '"אני נוטה להיתקע ולחשוב יותר מדי לפני שאני מחליט/ה, וזה לפעמים מעכב אותי."' },
+      { key: 'C', text: '"אני אוסף/ת כמה שיותר מידע זמין, קובע/ת נקודת זמן להחלטה, ובוחר/ת את האופציה הכי פחות הפיכה."' },
+    ],
+  },
+  {
+    id: 'b16',
+    prompt: 'המראיין/ת: "מה היית עושה אם עמית לצוות לא מושך את משקלו?"',
+    options: [
+      { key: 'A', text: '"הייתי פשוט מתעלם/ת מזה, זה לא העניין שלי."' },
+      { key: 'B', text: '"פעם זה כל כך הרגיז אותי שהתפרצתי עליו/ה מול כולם."' },
+      { key: 'C', text: '"הייתי מדבר/ת איתו/ה בפרטיות כדי להבין את הסיבה, ומעלה את זה למנהל אם זה נמשך."' },
+    ],
+  },
+  {
+    id: 'b17',
+    prompt: 'המראיין/ת: "מהי החוזקה הגדולה ביותר שלך?"',
+    options: [
+      { key: 'A', text: '"אני מושלם/ת בכל מה שאני עושה."' },
+      { key: 'B', text: '"קשה לי לזהות חוזקות שלי, אני תמיד מתמקד/ת יותר במה שצריך לשפר."' },
+      { key: 'C', text: '"יכולת לפרק בעיות מורכבות לצעדים ברורים ולתקשר אותם לצוות בצורה פשוטה."' },
+    ],
+  },
+  {
+    id: 'b18',
+    prompt: 'המראיין/ת: "איך תגיב/י אם תגלה/י שהמוצר שאתה בונה בעייתי אתית?"',
+    options: [
+      { key: 'A', text: '"לא באמת מעניין אותי, זה לא התפקיד שלי לשפוט."' },
+      { key: 'B', text: '"כנראה שהייתי מתלבט/ת המון ומתקשה להחליט אם לדבר על זה בגלוי."' },
+      { key: 'C', text: '"הייתי מעלה את זה בפורום המתאים בארגון, ואם לא היה פתרון - שוקל/ת ברצינות לעזוב."' },
+    ],
+  },
+  {
+    id: 'b19',
+    prompt: 'המראיין/ת: "מהו סגנון הניהול העצמי שלך?"',
+    options: [
+      { key: 'A', text: '"אני לא צריך/ה ניהול בכלל, אני עובד/ת הכי טוב לבד."' },
+      { key: 'B', text: '"אני נוטה לדחות משימות פחות מעניינות עד הרגע האחרון."' },
+      { key: 'C', text: '"אני קובע/ת סדר עדיפויות שבועי ובודק/ת התקדמות מול עצמי כל יום."' },
+    ],
+  },
+  {
+    id: 'b20',
+    prompt: 'המראיין/ת: "למה לקח לך הרבה זמן למצוא עבודה חדשה?"',
+    options: [
+      { key: 'A', text: '"לא ממש חיפשתי ברצינות עד עכשיו."' },
+      { key: 'B', text: '"האמת שקיבלתי הרבה דחיות וזה ממש פגע בביטחון העצמי שלי."' },
+      { key: 'C', text: '"הייתי סלקטיבי/ת מאוד כי חיפשתי התאמה מדויקת מבחינת תפקיד ותרבות ארגונית."' },
     ],
   },
 ];
@@ -855,7 +1987,7 @@ export default function ContractHunterGame() {
 
     // Auto-reject: ghosting a company's invite/next-stage mail for 14+ days (during the
     // first 3 interview stages only — the final offer has its own ultimatum timer instead).
-    const AUTO_REJECT_DAYS = 14;
+    const AUTO_REJECT_DAYS = 28;
     Object.entries(pipeline).forEach(([companyId, entry]) => {
       const waitingOnPlayer = entry.status === 'invited' || entry.status === 'stage_ready';
       if (!waitingOnPlayer || entry.arrivedDay === undefined) return;
@@ -969,7 +2101,7 @@ export default function ContractHunterGame() {
           <h1 className="text-4xl font-extrabold mb-2">צייד החוזים</h1>
           <p className="text-gray-400 mb-1">The Contract Hunter</p>
           <p className="text-gray-500 text-sm mb-8 leading-relaxed">
-            180 יום. 12 חברות. תיבת דואר עמוסה בגייסים. ראיונות טכניים, פאזלים ארכיטקטוניים ומלכודות התנהגותיות.
+            180 יום. 120 חברות. תיבת דואר עמוסה בגייסים. ראיונות טכניים, פאזלים ארכיטקטוניים ומלכודות התנהגותיות.
             נהל/י את הלחץ, בנה/י אגו, וחתמ/י על ההצעה הטובה ביותר — לפני שהזמן, או העצבים, ייגמרו.
           </p>
           <button
