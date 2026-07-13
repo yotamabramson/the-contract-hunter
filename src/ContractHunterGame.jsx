@@ -1838,6 +1838,15 @@ function AboutModal({ onClose }) {
   );
 }
 
+function PlayCountLine({ count }) {
+  if (!count) return null;
+  return (
+    <p className="text-center text-[11px] text-gray-600 mt-2">
+      <span dir="ltr">{count.toLocaleString('he-IL')}</span> ציידים כבר יצאו לדרך
+    </p>
+  );
+}
+
 // ============================================================================
 // END SCREEN
 // ============================================================================
@@ -1845,7 +1854,7 @@ function AboutModal({ onClose }) {
 function EndScreen({
   result, onRestart, onGoHome,
   leaderboardName, onNameChange, submitStatus, submitRank, submitImproved, submitBestScore, onSubmitScore,
-  showLeaderboard, onToggleLeaderboard, leaderboardEntries, leaderboardLoading,
+  showLeaderboard, onToggleLeaderboard, leaderboardEntries, leaderboardLoading, playCount,
 }) {
   if (result.type === 'burnout') {
     return (
@@ -1957,6 +1966,7 @@ function EndScreen({
           {showLeaderboard && (
             <div className="mt-2 pt-2 border-t border-gray-800">
               <LeaderboardList entries={leaderboardEntries} loading={leaderboardLoading} />
+              <PlayCountLine count={playCount} />
             </div>
           )}
         </div>
@@ -1994,6 +2004,7 @@ export default function ContractHunterGame() {
   const [showAbout, setShowAbout] = useState(false);
   const [leaderboardEntries, setLeaderboardEntries] = useState(null);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+  const [playCount, setPlayCount] = useState(null);
 
   const contactedRef = useRef(new Set());
   // Queue of delayed inbox arrivals: { id, dueDay, companyId, kind: 'stage_invite' | 'offer', stage, egoAtPass }
@@ -2027,6 +2038,14 @@ export default function ContractHunterGame() {
   function resetGame() {
     resetGameState();
     setStarted(true);
+    trackPlay();
+  }
+
+  function trackPlay() {
+    fetch('/api/track-play', { method: 'POST' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => { if (data?.playCount) setPlayCount(data.playCount); })
+      .catch(() => {});
   }
 
   function goHome() {
@@ -2039,7 +2058,9 @@ export default function ContractHunterGame() {
     try {
       const res = await fetch('/api/leaderboard');
       if (!res.ok) throw new Error('bad response');
-      setLeaderboardEntries(await res.json());
+      const data = await res.json();
+      setLeaderboardEntries(data.entries ?? []);
+      setPlayCount(data.playCount ?? null);
     } catch {
       setLeaderboardEntries([]);
     } finally {
@@ -2300,6 +2321,7 @@ export default function ContractHunterGame() {
               <Award size={18} className="text-yellow-400" /> לוח התהילה
             </h3>
             <LeaderboardList entries={leaderboardEntries} loading={leaderboardLoading} />
+            <PlayCountLine count={playCount} />
           </div>
         </div>
       </div>
@@ -2320,7 +2342,7 @@ export default function ContractHunterGame() {
           leaderboardName={leaderboardName} onNameChange={setLeaderboardName}
           submitStatus={submitStatus} submitRank={submitRank} submitImproved={submitImproved} submitBestScore={submitBestScore} onSubmitScore={submitScore}
           showLeaderboard={showLeaderboard} onToggleLeaderboard={toggleLeaderboard}
-          leaderboardEntries={leaderboardEntries} leaderboardLoading={leaderboardLoading}
+          leaderboardEntries={leaderboardEntries} leaderboardLoading={leaderboardLoading} playCount={playCount}
         />
       </div>
       <button onClick={() => setShowAbout(true)} className="fixed bottom-2 inset-x-0 mx-auto w-fit text-[11px] text-gray-400 hover:text-gray-200 transition-colors z-40">
