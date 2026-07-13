@@ -1828,6 +1828,7 @@ function AboutModal({ onClose }) {
         <ShieldAlert size={32} className="mx-auto text-red-500 mb-3" />
         <h3 className="font-bold text-gray-100 mb-1">צייד החוזים</h3>
         <p className="text-sm text-gray-400 mb-3">Created by Yotam Abramson</p>
+        <p className="text-xs text-gray-500 mb-3 leading-relaxed">זהו משחק בלבד. שמות החברות דמיוניים וקשר בינם למציאות מקרי בהחלט.</p>
         <p className="text-xs text-gray-600" dir="ltr">build {typeof __BUILD_SHA__ !== 'undefined' ? __BUILD_SHA__ : 'dev'}</p>
         <button onClick={onClose} className="mt-4 text-xs text-blue-400 hover:underline">
           סגור
