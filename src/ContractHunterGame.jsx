@@ -2040,6 +2040,8 @@ export default function ContractHunterGame() {
       setSubmitRank(data.rank ?? null);
       setSubmitStatus('submitted');
       saveLeaderboardName(leaderboardName.trim());
+      setShowLeaderboard(true);
+      loadLeaderboard(); // refresh the displayed list so an overridden score shows immediately
     } catch {
       setSubmitStatus('error');
     }
