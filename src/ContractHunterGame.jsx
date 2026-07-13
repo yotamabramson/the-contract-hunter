@@ -1782,17 +1782,17 @@ function MessageCard({ message, company, onStartInterview, onAccept, now, interv
 }
 
 function LeaderboardList({ entries, loading }) {
-  if (loading) return <p className="text-xs text-gray-500 py-2">טוען...</p>;
+  if (loading) return <p className="text-sm text-gray-500 py-2">טוען...</p>;
   if (!entries) return null;
-  if (entries.length === 0) return <p className="text-xs text-gray-500 py-2">עדיין אין ניקוד בלוח התהילה — היה/י הראשון/ה!</p>;
+  if (entries.length === 0) return <p className="text-sm text-gray-500 py-2">עדיין אין ניקוד בלוח התהילה — היה/י הראשון/ה!</p>;
   return (
-    <div className="max-h-56 overflow-y-auto flex flex-col gap-0.5">
+    <div className="max-h-56 overflow-y-auto flex flex-col gap-1">
       {entries.map((e, idx) => (
-        <div key={idx} className="flex items-center gap-2 text-xs py-1.5 border-b border-gray-900">
-          <span className="text-gray-600 w-5 shrink-0">{idx + 1}.</span>
+        <div key={idx} className="flex items-center gap-2 text-sm py-2 border-b border-gray-900">
+          <span className="text-gray-600 w-6 shrink-0">{idx + 1}.</span>
           <span className="text-gray-200 flex-1 truncate">{e.name}</span>
           <span className="text-gray-500 flex-1 truncate">{e.company}</span>
-          <span dir="ltr" className="text-yellow-400 font-bold shrink-0">{e.score}</span>
+          <span dir="ltr" className="text-yellow-400 font-bold text-base shrink-0">{e.score}</span>
         </div>
       ))}
     </div>
@@ -1804,7 +1804,7 @@ function LeaderboardList({ entries, loading }) {
 // ============================================================================
 
 function EndScreen({
-  result, onRestart,
+  result, onRestart, onGoHome,
   leaderboardName, onNameChange, submitStatus, submitRank, onSubmitScore,
   showLeaderboard, onToggleLeaderboard, leaderboardEntries, leaderboardLoading,
 }) {
@@ -1876,8 +1876,8 @@ function EndScreen({
         </div>
 
         <div className="bg-gray-950 rounded-xl p-5 mb-6 border border-gray-800">
-          <h3 className="text-sm font-bold text-gray-400 mb-3 flex items-center gap-2">
-            <Award size={16} className="text-yellow-400" /> לוח התהילה
+          <h3 className="text-base font-bold text-gray-400 mb-3 flex items-center gap-2">
+            <Award size={18} className="text-yellow-400" /> לוח התהילה
           </h3>
           {submitStatus === 'submitted' ? (
             <p className="text-sm text-green-400 mb-1">
@@ -1916,9 +1916,15 @@ function EndScreen({
           )}
         </div>
 
-        <button onClick={onRestart} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg px-6 py-3 flex items-center justify-center gap-2">
-          <RefreshCw size={16} /> ציד חדש
-        </button>
+        {submitStatus === 'submitted' ? (
+          <button onClick={onGoHome} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg px-6 py-3 flex items-center justify-center gap-2">
+            <Home size={16} /> עמוד הבית
+          </button>
+        ) : (
+          <button onClick={onRestart} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg px-6 py-3 flex items-center justify-center gap-2">
+            <RefreshCw size={16} /> ציד חדש
+          </button>
+        )}
       </div>
     </div>
   );
@@ -1956,7 +1962,7 @@ export default function ContractHunterGame() {
 
   const offersCount = inbox.filter((m) => m.type === 'offer' && m.status === 'active').length;
 
-  function resetGame() {
+  function resetGameState() {
     contactedRef.current = new Set();
     pendingArrivalsRef.current = [];
     lastArrivalDayRef.current = 1;
@@ -1972,7 +1978,16 @@ export default function ContractHunterGame() {
     setLeaderboardName('');
     setSubmitStatus('idle');
     setSubmitRank(null);
+  }
+
+  function resetGame() {
+    resetGameState();
     setStarted(true);
+  }
+
+  function goHome() {
+    resetGameState();
+    setStarted(false);
   }
 
   async function loadLeaderboard() {
@@ -2231,8 +2246,8 @@ export default function ContractHunterGame() {
           </div>
 
           <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-5">
-            <h3 className="text-sm font-bold text-gray-300 mb-3 flex items-center gap-2">
-              <Award size={16} className="text-yellow-400" /> לוח התהילה
+            <h3 className="text-base font-bold text-gray-300 mb-3 flex items-center gap-2">
+              <Award size={18} className="text-yellow-400" /> לוח התהילה
             </h3>
             <LeaderboardList entries={leaderboardEntries} loading={leaderboardLoading} />
           </div>
@@ -2245,7 +2260,7 @@ export default function ContractHunterGame() {
     return (
       <div dir="rtl" className="min-h-screen bg-gradient-to-b from-gray-950 to-gray-900 text-gray-100 font-sans">
         <EndScreen
-          result={gameOver} onRestart={resetGame}
+          result={gameOver} onRestart={resetGame} onGoHome={goHome}
           leaderboardName={leaderboardName} onNameChange={setLeaderboardName}
           submitStatus={submitStatus} submitRank={submitRank} onSubmitScore={submitScore}
           showLeaderboard={showLeaderboard} onToggleLeaderboard={toggleLeaderboard}

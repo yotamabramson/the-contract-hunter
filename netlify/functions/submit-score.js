@@ -2,6 +2,18 @@ import { getStore } from '@netlify/blobs';
 
 const MAX_ENTRIES = 200;
 
+// Windows-style de-duplication: "Yotam" -> "Yotam (1)" -> "Yotam (2)" -> ...
+function uniqueName(existingNames, baseName) {
+  if (!existingNames.has(baseName)) return baseName;
+  let counter = 1;
+  let candidate = `${baseName} (${counter})`;
+  while (existingNames.has(candidate)) {
+    counter++;
+    candidate = `${baseName} (${counter})`;
+  }
+  return candidate;
+}
+
 export default async (req) => {
   if (req.method !== 'POST') {
     return new Response('Method Not Allowed', { status: 405 });
@@ -26,9 +38,10 @@ export default async (req) => {
 
   const store = getStore('leaderboard');
   const existing = (await store.get('entries', { type: 'json' })) || [];
+  const existingNames = new Set(existing.map((e) => e.name));
 
   const entry = {
-    name: name.trim().slice(0, 20),
+    name: uniqueName(existingNames, name.trim().slice(0, 20)),
     company: typeof company === 'string' ? company.slice(0, 80) : '',
     role: typeof role === 'string' ? role.slice(0, 60) : '',
     score: Math.round(score),
