@@ -2302,7 +2302,7 @@ export default function ContractHunterGame() {
           </div>
         </div>
       </div>
-      <button onClick={() => setShowAbout(true)} className="fixed bottom-2 inset-x-0 mx-auto w-fit text-[11px] text-gray-700 hover:text-gray-400 transition-colors z-40">
+      <button onClick={() => setShowAbout(true)} className="fixed bottom-2 inset-x-0 mx-auto w-fit text-[11px] text-gray-400 hover:text-gray-200 transition-colors z-40">
         אודות
       </button>
       {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
@@ -2322,7 +2322,7 @@ export default function ContractHunterGame() {
           leaderboardEntries={leaderboardEntries} leaderboardLoading={leaderboardLoading}
         />
       </div>
-      <button onClick={() => setShowAbout(true)} className="fixed bottom-2 inset-x-0 mx-auto w-fit text-[11px] text-gray-700 hover:text-gray-400 transition-colors z-40">
+      <button onClick={() => setShowAbout(true)} className="fixed bottom-2 inset-x-0 mx-auto w-fit text-[11px] text-gray-400 hover:text-gray-200 transition-colors z-40">
         אודות
       </button>
       {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
@@ -2440,7 +2440,7 @@ export default function ContractHunterGame() {
         <InterviewModal company={activeInterview.company} stage={activeInterview.stage} onComplete={handleInterviewComplete} />
       )}
     </div>
-    <button onClick={() => setShowAbout(true)} className="fixed bottom-2 inset-x-0 mx-auto w-fit text-[11px] text-gray-700 hover:text-gray-400 transition-colors z-40">
+    <button onClick={() => setShowAbout(true)} className="fixed bottom-2 inset-x-0 mx-auto w-fit text-[11px] text-gray-400 hover:text-gray-200 transition-colors z-40">
       אודות
     </button>
     {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
