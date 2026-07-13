@@ -1988,6 +1988,12 @@ export default function ContractHunterGame() {
     }
   }
 
+  // Leaderboard is always visible on the start screen, so fetch it as soon as we land there.
+  useEffect(() => {
+    if (!started) loadLeaderboard();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [started]);
+
   function toggleLeaderboard() {
     setShowLeaderboard((s) => {
       const next = !s;
@@ -2203,33 +2209,33 @@ export default function ContractHunterGame() {
   if (!started) {
     return (
       <div dir="rtl" className="min-h-screen bg-gradient-to-b from-gray-950 to-gray-900 text-gray-100 flex items-center justify-center p-6 font-sans">
-        <div className="max-w-lg w-full text-center">
-          <div className="flex justify-center mb-4">
-            <div className="bg-red-600/10 border border-red-800 rounded-2xl p-4">
-              <ShieldAlert size={48} className="text-red-500" />
+        <div className="max-w-4xl w-full grid md:grid-cols-2 gap-8 items-center">
+          <div className="text-center">
+            <div className="flex justify-center mb-4">
+              <div className="bg-red-600/10 border border-red-800 rounded-2xl p-4">
+                <ShieldAlert size={48} className="text-red-500" />
+              </div>
             </div>
+            <h1 className="text-4xl font-extrabold mb-2">צייד החוזים</h1>
+            <p className="text-gray-400 mb-1">The Contract Hunter</p>
+            <p className="text-gray-500 text-sm mb-8 leading-relaxed">
+              180 יום. 120 חברות. תיבת דואר עמוסה בגייסים. ראיונות טכניים, פאזלים ארכיטקטוניים ומלכודות התנהגותיות.
+              נהל/י את הלחץ, בנה/י אגו, וחתמ/י על ההצעה הטובה ביותר — לפני שהזמן, או העצבים, ייגמרו.
+            </p>
+            <button
+              onClick={resetGame}
+              className="bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl px-8 py-3 flex items-center gap-2 mx-auto text-lg"
+            >
+              <PlayCircle size={20} /> התחל ציד
+            </button>
           </div>
-          <h1 className="text-4xl font-extrabold mb-2">צייד החוזים</h1>
-          <p className="text-gray-400 mb-1">The Contract Hunter</p>
-          <p className="text-gray-500 text-sm mb-8 leading-relaxed">
-            180 יום. 120 חברות. תיבת דואר עמוסה בגייסים. ראיונות טכניים, פאזלים ארכיטקטוניים ומלכודות התנהגותיות.
-            נהל/י את הלחץ, בנה/י אגו, וחתמ/י על ההצעה הטובה ביותר — לפני שהזמן, או העצבים, ייגמרו.
-          </p>
-          <button
-            onClick={resetGame}
-            className="bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl px-8 py-3 flex items-center gap-2 mx-auto text-lg"
-          >
-            <PlayCircle size={20} /> התחל ציד
-          </button>
 
-          <button onClick={toggleLeaderboard} className="mt-5 text-sm text-gray-400 hover:text-gray-200 flex items-center gap-1.5 mx-auto">
-            <Award size={14} /> {showLeaderboard ? 'הסתר לוח תהילה' : 'לוח התהילה'}
-          </button>
-          {showLeaderboard && (
-            <div className="mt-3 bg-gray-900/50 border border-gray-800 rounded-xl p-4 text-right">
-              <LeaderboardList entries={leaderboardEntries} loading={leaderboardLoading} />
-            </div>
-          )}
+          <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-5">
+            <h3 className="text-sm font-bold text-gray-300 mb-3 flex items-center gap-2">
+              <Award size={16} className="text-yellow-400" /> לוח התהילה
+            </h3>
+            <LeaderboardList entries={leaderboardEntries} loading={leaderboardLoading} />
+          </div>
         </div>
       </div>
     );
