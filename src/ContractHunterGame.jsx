@@ -1916,15 +1916,9 @@ function EndScreen({
           )}
         </div>
 
-        {submitStatus === 'submitted' ? (
-          <button onClick={onGoHome} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg px-6 py-3 flex items-center justify-center gap-2">
-            <Home size={16} /> עמוד הבית
-          </button>
-        ) : (
-          <button onClick={onRestart} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg px-6 py-3 flex items-center justify-center gap-2">
-            <RefreshCw size={16} /> ציד חדש
-          </button>
-        )}
+        <button onClick={onGoHome} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg px-6 py-3 flex items-center justify-center gap-2">
+          <Home size={16} /> עמוד הבית
+        </button>
       </div>
     </div>
   );
