@@ -1319,6 +1319,22 @@ const shuffle = (arr) => {
 };
 const formatILS = (n) => `${n.toLocaleString('he-IL')} ₪`;
 
+const LEADERBOARD_NAME_KEY = 'contractHunter.leaderboardName';
+function getSavedLeaderboardName() {
+  try {
+    return localStorage.getItem(LEADERBOARD_NAME_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+function saveLeaderboardName(name) {
+  try {
+    localStorage.setItem(LEADERBOARD_NAME_KEY, name);
+  } catch {
+    // localStorage unavailable (private mode, etc.) — not critical, just skip persisting.
+  }
+}
+
 function pickTwoQuestions() {
   return shuffle(QUESTION_BANK).slice(0, 2).map((q) => ({ ...q, options: shuffle(q.options) }));
 }
@@ -1940,7 +1956,7 @@ export default function ContractHunterGame() {
   const [now, setNow] = useState(Date.now());
   const [highlightId, setHighlightId] = useState(null);
 
-  const [leaderboardName, setLeaderboardName] = useState('');
+  const [leaderboardName, setLeaderboardName] = useState(getSavedLeaderboardName);
   const [submitStatus, setSubmitStatus] = useState('idle'); // idle | submitting | submitted | error
   const [submitRank, setSubmitRank] = useState(null);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
@@ -1969,7 +1985,7 @@ export default function ContractHunterGame() {
     setActiveInterview(null);
     setGameOver(null);
     setNow(Date.now());
-    setLeaderboardName('');
+    setLeaderboardName(getSavedLeaderboardName());
     setSubmitStatus('idle');
     setSubmitRank(null);
   }
@@ -2023,6 +2039,7 @@ export default function ContractHunterGame() {
       const data = await res.json();
       setSubmitRank(data.rank ?? null);
       setSubmitStatus('submitted');
+      saveLeaderboardName(leaderboardName.trim());
     } catch {
       setSubmitStatus('error');
     }
