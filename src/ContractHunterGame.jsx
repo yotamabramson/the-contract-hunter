@@ -1815,13 +1815,35 @@ function LeaderboardList({ entries, loading }) {
   );
 }
 
+function AboutModal({ onClose }) {
+  return (
+    <div
+      className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[60] flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-gray-900 border border-gray-700 rounded-2xl p-6 max-w-xs w-full text-center"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <ShieldAlert size={32} className="mx-auto text-red-500 mb-3" />
+        <h3 className="font-bold text-gray-100 mb-1">צייד החוזים</h3>
+        <p className="text-sm text-gray-400 mb-3">Created by Yotam Abramson</p>
+        <p className="text-xs text-gray-600" dir="ltr">build {typeof __BUILD_SHA__ !== 'undefined' ? __BUILD_SHA__ : 'dev'}</p>
+        <button onClick={onClose} className="mt-4 text-xs text-blue-400 hover:underline">
+          סגור
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ============================================================================
 // END SCREEN
 // ============================================================================
 
 function EndScreen({
   result, onRestart, onGoHome,
-  leaderboardName, onNameChange, submitStatus, submitRank, onSubmitScore,
+  leaderboardName, onNameChange, submitStatus, submitRank, submitImproved, submitBestScore, onSubmitScore,
   showLeaderboard, onToggleLeaderboard, leaderboardEntries, leaderboardLoading,
 }) {
   if (result.type === 'burnout') {
@@ -1896,9 +1918,15 @@ function EndScreen({
             <Award size={18} className="text-yellow-400" /> לוח התהילה
           </h3>
           {submitStatus === 'submitted' ? (
-            <p className="text-sm text-green-400 mb-1">
-              נשלח בהצלחה!{submitRank ? ` דורגת במקום ${submitRank}.` : ''}
-            </p>
+            submitImproved ? (
+              <p className="text-sm text-green-400 mb-1">
+                נשלח בהצלחה!{submitRank ? ` דורגת במקום ${submitRank}.` : ''}
+              </p>
+            ) : (
+              <p className="text-sm text-orange-400 mb-1">
+                השיא הקודם שלך ({submitBestScore}) גבוה יותר ונשמר.{submitRank ? ` עדיין מדורג/ת במקום ${submitRank}.` : ''}
+              </p>
+            )
           ) : (
             <div className="flex gap-2 mb-1">
               <input
@@ -1959,7 +1987,10 @@ export default function ContractHunterGame() {
   const [leaderboardName, setLeaderboardName] = useState(getSavedLeaderboardName);
   const [submitStatus, setSubmitStatus] = useState('idle'); // idle | submitting | submitted | error
   const [submitRank, setSubmitRank] = useState(null);
+  const [submitImproved, setSubmitImproved] = useState(true);
+  const [submitBestScore, setSubmitBestScore] = useState(null);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
   const [leaderboardEntries, setLeaderboardEntries] = useState(null);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
 
@@ -1988,6 +2019,8 @@ export default function ContractHunterGame() {
     setLeaderboardName(getSavedLeaderboardName());
     setSubmitStatus('idle');
     setSubmitRank(null);
+    setSubmitImproved(true);
+    setSubmitBestScore(null);
   }
 
   function resetGame() {
@@ -2038,6 +2071,8 @@ export default function ContractHunterGame() {
       if (!res.ok) throw new Error('bad response');
       const data = await res.json();
       setSubmitRank(data.rank ?? null);
+      setSubmitImproved(data.improved !== false);
+      setSubmitBestScore(data.bestScore ?? null);
       setSubmitStatus('submitted');
       saveLeaderboardName(leaderboardName.trim());
       setShowLeaderboard(true);
@@ -2236,6 +2271,7 @@ export default function ContractHunterGame() {
 
   if (!started) {
     return (
+      <>
       <div dir="rtl" className="min-h-screen bg-gradient-to-b from-gray-950 to-gray-900 text-gray-100 flex items-center justify-center p-6 font-sans">
         <div className="max-w-4xl w-full grid md:grid-cols-2 gap-8 items-center">
           <div className="text-center">
@@ -2266,20 +2302,31 @@ export default function ContractHunterGame() {
           </div>
         </div>
       </div>
+      <button onClick={() => setShowAbout(true)} className="fixed bottom-2 inset-x-0 mx-auto w-fit text-[11px] text-gray-700 hover:text-gray-400 transition-colors z-40">
+        אודות
+      </button>
+      {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
+      </>
     );
   }
 
   if (gameOver) {
     return (
+      <>
       <div dir="rtl" className="min-h-screen bg-gradient-to-b from-gray-950 to-gray-900 text-gray-100 font-sans">
         <EndScreen
           result={gameOver} onRestart={resetGame} onGoHome={goHome}
           leaderboardName={leaderboardName} onNameChange={setLeaderboardName}
-          submitStatus={submitStatus} submitRank={submitRank} onSubmitScore={submitScore}
+          submitStatus={submitStatus} submitRank={submitRank} submitImproved={submitImproved} submitBestScore={submitBestScore} onSubmitScore={submitScore}
           showLeaderboard={showLeaderboard} onToggleLeaderboard={toggleLeaderboard}
           leaderboardEntries={leaderboardEntries} leaderboardLoading={leaderboardLoading}
         />
       </div>
+      <button onClick={() => setShowAbout(true)} className="fixed bottom-2 inset-x-0 mx-auto w-fit text-[11px] text-gray-700 hover:text-gray-400 transition-colors z-40">
+        אודות
+      </button>
+      {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
+      </>
     );
   }
 
@@ -2302,6 +2349,7 @@ export default function ContractHunterGame() {
     });
 
   return (
+    <>
     <div dir="rtl" className="min-h-screen bg-gradient-to-b from-gray-950 to-gray-900 text-gray-100 font-sans p-4 md:p-8">
       <div className="max-w-6xl mx-auto">
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
@@ -2392,5 +2440,10 @@ export default function ContractHunterGame() {
         <InterviewModal company={activeInterview.company} stage={activeInterview.stage} onComplete={handleInterviewComplete} />
       )}
     </div>
+    <button onClick={() => setShowAbout(true)} className="fixed bottom-2 inset-x-0 mx-auto w-fit text-[11px] text-gray-700 hover:text-gray-400 transition-colors z-40">
+      אודות
+    </button>
+    {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
+    </>
   );
 }
