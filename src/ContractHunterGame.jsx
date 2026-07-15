@@ -1827,8 +1827,9 @@ function AboutModal({ onClose }) {
       >
         <ShieldAlert size={32} className="mx-auto text-red-500 mb-3" />
         <h3 className="font-bold text-gray-100 mb-1">צייד החוזים</h3>
+        <p className="text-xs font-bold text-red-400 mb-2">🎮 משחק סימולציה על חיפוש עבודה בהייטק</p>
         <p className="text-sm text-gray-400 mb-3">Created by Yotam Abramson</p>
-        <p className="text-xs text-gray-500 mb-3 leading-relaxed">זהו משחק בלבד. שמות החברות דמיוניים וקשר בינם למציאות מקרי בהחלט.</p>
+        <p className="text-xs text-gray-500 mb-3 leading-relaxed">זהו משחק בלבד ולא אתר חיפוש עבודה אמיתי. שמות החברות דמיוניים וקשר בינם למציאות מקרי בהחלט.</p>
         <p className="text-xs text-gray-600" dir="ltr">build {typeof __BUILD_SHA__ !== 'undefined' ? __BUILD_SHA__ : 'dev'}</p>
         <button onClick={onClose} className="mt-4 text-xs text-blue-400 hover:underline">
           סגור
@@ -2303,9 +2304,12 @@ export default function ContractHunterGame() {
               </div>
             </div>
             <h1 className="text-4xl font-extrabold mb-2">צייד החוזים</h1>
-            <p className="text-gray-400 mb-1">The Contract Hunter</p>
+            <p className="text-gray-400 mb-3">The Contract Hunter</p>
+            <p className="inline-block text-xs font-bold text-red-400 bg-red-500/10 border border-red-800/50 rounded-full px-3 py-1 mb-4">
+              🎮 משחק סימולציה על חיפוש עבודה בהייטק
+            </p>
             <p className="text-gray-500 text-sm mb-8 leading-relaxed">
-              180 יום. 120 חברות. תיבת דואר עמוסה בגייסים. ראיונות טכניים, פאזלים ארכיטקטוניים ומלכודות התנהגותיות.
+              180 יום. 120 חברות בדויות. תיבת דואר עמוסה בגייסים. ראיונות טכניים, פאזלים ארכיטקטוניים ומלכודות התנהגותיות.
               נהל/י את הלחץ, בנה/י אגו, וחתמ/י על ההצעה הטובה ביותר — לפני שהזמן, או העצבים, ייגמרו.
             </p>
             <button
@@ -2382,7 +2386,7 @@ export default function ContractHunterGame() {
             </div>
             <div>
               <h1 className="text-xl font-extrabold leading-tight">צייד החוזים</h1>
-              <p className="text-xs text-gray-500">The Contract Hunter</p>
+              <p className="text-xs text-gray-500">The Contract Hunter · 🎮 משחק סימולציה על חיפוש עבודה</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-3">
