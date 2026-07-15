@@ -2312,7 +2312,7 @@ export default function ContractHunterGame() {
               onClick={resetGame}
               className="bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl px-8 py-3 flex items-center gap-2 mx-auto text-lg"
             >
-              <PlayCircle size={20} /> התחל ציד
+              <PlayCircle size={20} /> התחל משחק
             </button>
           </div>
 
